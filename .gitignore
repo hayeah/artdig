@@ -8,6 +8,12 @@ dist/
 # Output
 output/
 
+# Notes (symlink to Obsidian vault)
+.obnotes
+
+# Node
+node_modules/
+
 # IDE
 .idea/
 .vscode/
