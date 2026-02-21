@@ -1,103 +1,137 @@
 import SwiftUI
-import NukeUI
+import Nuke
 
 struct ArtworkImageView: View {
     let artwork: ArtworkLink
-    @State private var resolvedImageURL: URL?
-    @State private var metadata: MetAPIResponse?
-    @State private var isLoading = true
+    @State private var previewImage: UIImage?
+    @State private var fullImage: UIImage?
+    @State private var isLoadingFull = false
+    @State private var downloadProgress: Float = 0
+    @State private var downloadedBytes: Int64 = 0
     @State private var errorMessage: String?
 
+    private var displayImage: UIImage? {
+        fullImage ?? previewImage
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: 0)
-
-            if let resolvedImageURL {
-                LazyImage(url: resolvedImageURL) { state in
-                    if let image = state.image {
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                    } else if state.isLoading {
-                        ProgressView("Loading painting...")
-                    } else {
-                        ContentUnavailableView(
-                            "Failed to Load",
-                            systemImage: "photo",
-                            description: Text("Could not load the painting image")
-                        )
+        Group {
+            if let image = displayImage {
+                Image(uiImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .overlay(alignment: .bottom) {
+                        if isLoadingFull {
+                            VStack(spacing: 4) {
+                                ProgressView(value: downloadProgress)
+                                    .progressViewStyle(.linear)
+                                Text(progressLabel)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 40)
+                            .padding(.bottom, 12)
+                        }
                     }
-                }
-                .padding()
-            } else if isLoading {
-                ProgressView("Resolving artwork...")
             } else if let errorMessage {
-                ContentUnavailableView(
-                    "Error",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(errorMessage)
-                )
+                Text(errorMessage)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ProgressView("Loading preview...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-
-            Spacer(minLength: 0)
-
-            metadataBar
-                .padding()
         }
-        .frame(minWidth: 500, minHeight: 500)
-        .task { await resolveImage() }
+        .task { await loadImage() }
     }
 
-    @ViewBuilder
-    private var metadataBar: some View {
-        if let metadata {
-            VStack(spacing: 4) {
-                Text(metadata.title)
-                    .font(.headline)
-                    .multilineTextAlignment(.center)
-                if !metadata.artistDisplayName.isEmpty {
-                    Text(metadata.artistDisplayName)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                if !metadata.objectDate.isEmpty {
-                    Text(metadata.objectDate)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-        } else {
-            Text("\(artwork.source == .met ? "Met" : "NGA") #\(artwork.sourceID)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
+    private var progressLabel: String {
+        let pct = Int(downloadProgress * 100)
+        let mb = String(format: "%.1f", Double(downloadedBytes) / 1_000_000)
+        return "\(pct)% — \(mb) MB"
     }
 
-    private func resolveImage() async {
-        if let url = artwork.imageURL {
-            resolvedImageURL = url
-            isLoading = false
+    private func loadImage() async {
+        let urls = await resolveURLs()
+        let pipeline = ImagePipeline.shared
+
+        // Stage 1: load preview (fast, cached by Nuke)
+        if let previewURL = urls.preview {
+            do {
+                previewImage = try await pipeline.image(for: previewURL)
+            } catch {
+                // Preview failure is OK, continue to full
+            }
+        }
+
+        // Stage 2: load full resolution with progress (cached by Nuke)
+        guard let fullURL = urls.full else {
+            if previewImage == nil {
+                errorMessage = "No image available"
+            }
             return
         }
 
-        guard artwork.source == .met else {
-            errorMessage = "No image URL available"
-            isLoading = false
+        // Check cache first — skip progress if already cached
+        let fullRequest = ImageRequest(url: fullURL)
+        if let cached = pipeline.cache.cachedImage(for: fullRequest) {
+            fullImage = cached.image
             return
+        }
+
+        isLoadingFull = true
+        let task = pipeline.imageTask(with: fullRequest)
+
+        // Observe progress
+        Task {
+            for await progress in task.progress {
+                downloadProgress = progress.fraction
+                downloadedBytes = progress.completed
+            }
         }
 
         do {
-            let response = try await MetImageService.shared.fetchArtwork(objectID: artwork.sourceID)
-            metadata = response
-            if !response.primaryImage.isEmpty {
-                resolvedImageURL = URL(string: response.primaryImage)
-            } else {
-                errorMessage = "No image available for this artwork"
-            }
+            fullImage = try await task.image
         } catch {
-            errorMessage = error.localizedDescription
+            if previewImage == nil {
+                errorMessage = error.localizedDescription
+            }
         }
-        isLoading = false
+        isLoadingFull = false
+    }
+
+    private struct ImageURLs {
+        let preview: URL?
+        let full: URL?
+    }
+
+    private func resolveURLs() async -> ImageURLs {
+        if let fullURL = artwork.imageURL {
+            // NGA IIIF — derive preview by swapping size parameter
+            let previewURL = ngaPreviewURL(from: fullURL)
+            return ImageURLs(preview: previewURL, full: fullURL)
+        }
+
+        if artwork.source == .met {
+            do {
+                let response = try await MetImageService.shared.fetchArtwork(objectID: artwork.sourceID)
+                let full = response.primaryImage.isEmpty ? nil : URL(string: response.primaryImage)
+                let preview = response.primaryImageSmall.isEmpty ? nil : URL(string: response.primaryImageSmall)
+                return ImageURLs(preview: preview, full: full)
+            } catch {
+                errorMessage = error.localizedDescription
+                return ImageURLs(preview: nil, full: nil)
+            }
+        }
+
+        return ImageURLs(preview: nil, full: nil)
+    }
+
+    /// Swap IIIF `/full/max/` for a smaller size to get a fast preview
+    private func ngaPreviewURL(from fullURL: URL) -> URL? {
+        let str = fullURL.absoluteString
+        guard str.contains("/full/max/") else { return nil }
+        return URL(string: str.replacingOccurrences(of: "/full/max/", with: "/full/!600,600/"))
     }
 }

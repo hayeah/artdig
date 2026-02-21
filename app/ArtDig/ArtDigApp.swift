@@ -12,5 +12,7 @@ struct ArtDigApp: App {
                 ArtworkImageView(artwork: artwork)
             }
         }
+        .windowStyle(.plain)
+        .defaultSize(width: 800, height: 800)
     }
 }

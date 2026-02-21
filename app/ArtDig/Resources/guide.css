@@ -7,12 +7,13 @@
 }
 
 body {
-    font-family: 'New York', 'Georgia', serif;
+    font-family: -apple-system, 'Helvetica Neue', sans-serif;
     background: transparent;
     color: #f0ebe4;
     line-height: 1.75;
     padding: 32px 40px;
-    margin: 0;
+    max-width: 600px;
+    margin: 0 auto;
     -webkit-font-smoothing: antialiased;
 }
 
