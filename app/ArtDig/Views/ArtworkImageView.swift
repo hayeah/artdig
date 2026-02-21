@@ -9,9 +9,14 @@ struct ArtworkImageView: View {
     @State private var downloadProgress: Float = 0
     @State private var downloadedBytes: Int64 = 0
     @State private var errorMessage: String?
+    @State private var fullURL: URL?
 
     private var displayImage: UIImage? {
         fullImage ?? previewImage
+    }
+
+    private var hasFullRes: Bool {
+        fullImage != nil
     }
 
     var body: some View {
@@ -21,17 +26,30 @@ struct ArtworkImageView: View {
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
-                    .overlay(alignment: .bottom) {
+                    .overlay(alignment: .bottomTrailing) {
                         if isLoadingFull {
-                            VStack(spacing: 4) {
+                            // Download progress
+                            HStack(spacing: 8) {
                                 ProgressView(value: downloadProgress)
                                     .progressViewStyle(.linear)
+                                    .frame(width: 120)
                                 Text(progressLabel)
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
-                            .padding(.horizontal, 40)
-                            .padding(.bottom, 12)
+                            .padding(12)
+                        } else if !hasFullRes && fullURL != nil {
+                            // Full-res download button
+                            Button {
+                                Task { await loadFullRes() }
+                            } label: {
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .font(.title2)
+                                    .symbolRenderingMode(.hierarchical)
+                                    .foregroundStyle(.white)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(12)
                         }
                     }
             } else if let errorMessage {
@@ -43,7 +61,7 @@ struct ArtworkImageView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .task { await loadImage() }
+        .task { await loadPreview() }
     }
 
     private var progressLabel: String {
@@ -52,38 +70,43 @@ struct ArtworkImageView: View {
         return "\(pct)% — \(mb) MB"
     }
 
-    private func loadImage() async {
+    private func loadPreview() async {
         let urls = await resolveURLs()
+        fullURL = urls.full
         let pipeline = ImagePipeline.shared
 
-        // Stage 1: load preview (fast, cached by Nuke)
+        // Check if full-res is already cached
+        if let full = urls.full {
+            let fullRequest = ImageRequest(url: full)
+            if let cached = pipeline.cache.cachedImage(for: fullRequest) {
+                fullImage = cached.image
+                return
+            }
+        }
+
+        // Load preview
         if let previewURL = urls.preview {
             do {
                 previewImage = try await pipeline.image(for: previewURL)
             } catch {
-                // Preview failure is OK, continue to full
+                // Preview failure is OK
             }
         }
 
-        // Stage 2: load full resolution with progress (cached by Nuke)
-        guard let fullURL = urls.full else {
-            if previewImage == nil {
-                errorMessage = "No image available"
-            }
-            return
+        if previewImage == nil && fullImage == nil {
+            errorMessage = "No image available"
         }
+    }
 
-        // Check cache first — skip progress if already cached
-        let fullRequest = ImageRequest(url: fullURL)
-        if let cached = pipeline.cache.cachedImage(for: fullRequest) {
-            fullImage = cached.image
-            return
-        }
+    private func loadFullRes() async {
+        guard let url = fullURL else { return }
 
         isLoadingFull = true
-        let task = pipeline.imageTask(with: fullRequest)
+        downloadProgress = 0
+        downloadedBytes = 0
 
-        // Observe progress
+        let task = ImagePipeline.shared.imageTask(with: ImageRequest(url: url))
+
         Task {
             for await progress in task.progress {
                 downloadProgress = progress.fraction
@@ -94,9 +117,7 @@ struct ArtworkImageView: View {
         do {
             fullImage = try await task.image
         } catch {
-            if previewImage == nil {
-                errorMessage = error.localizedDescription
-            }
+            // Keep preview visible on failure
         }
         isLoadingFull = false
     }
@@ -108,7 +129,6 @@ struct ArtworkImageView: View {
 
     private func resolveURLs() async -> ImageURLs {
         if let fullURL = artwork.imageURL {
-            // NGA IIIF — derive preview by swapping size parameter
             let previewURL = ngaPreviewURL(from: fullURL)
             return ImageURLs(preview: previewURL, full: fullURL)
         }
@@ -128,10 +148,10 @@ struct ArtworkImageView: View {
         return ImageURLs(preview: nil, full: nil)
     }
 
-    /// Swap IIIF `/full/max/` for a smaller size to get a fast preview
+    /// Swap IIIF `/full/max/` for `!1080,1080` for a quick but decent preview
     private func ngaPreviewURL(from fullURL: URL) -> URL? {
         let str = fullURL.absoluteString
         guard str.contains("/full/max/") else { return nil }
-        return URL(string: str.replacingOccurrences(of: "/full/max/", with: "/full/!600,600/"))
+        return URL(string: str.replacingOccurrences(of: "/full/max/", with: "/full/!1080,1080/"))
     }
 }
