@@ -10,6 +10,14 @@ packages:
   Nuke:
     url: https://github.com/kean/Nuke
     from: "12.0.0"
+schemes:
+  ArtDig:
+    build:
+      targets:
+        ArtDig: all
+        ArtDigWidget: all
+    run:
+      config: Debug
 targets:
   ArtDig:
     type: application
@@ -32,3 +40,22 @@ targets:
         product: Nuke
       - package: Nuke
         product: NukeUI
+      - target: ArtDigWidget
+
+  ArtDigWidget:
+    type: app-extension
+    platform: visionOS
+    sources:
+      - path: ArtDigWidget
+        excludes:
+          - Info.plist
+      - path: ArtDig/Models/ArtworkLink.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.artdig.ArtDig.ArtDigWidget
+        INFOPLIST_FILE: ArtDigWidget/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ArtDigWidget/ArtDigWidget.entitlements
+        DEVELOPMENT_TEAM: 45XRDF3YX3
+        CODE_SIGN_STYLE: Automatic
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"

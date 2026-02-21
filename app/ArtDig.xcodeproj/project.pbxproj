@@ -9,41 +9,73 @@
 /* Begin PBXBuildFile section */
 		00342F97241C42FAABEAB5C7 /* ArtDigApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0797B9C9EE1A9C8956D56AB /* ArtDigApp.swift */; };
 		05120ADB8DA9E0972D1FE9CD /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = 3D53632799C92D76DA1FDDB6 /* NukeUI */; };
+		0D23E2A009508FD0082507B6 /* ArtDigWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F29940EF75C455ED706F77B /* ArtDigWidgetBundle.swift */; };
 		16353B21B7DDB56869BF18B7 /* GuideListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1FEF1ABAA10A37F84AD61F2 /* GuideListView.swift */; };
 		191D55E87B12CC6D8FC9DD31 /* MetAPIResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9496BAC917963ED024CF0D30 /* MetAPIResponse.swift */; };
 		2766BC9BDFD30F6238C80D8B /* marked.min.js in Resources */ = {isa = PBXBuildFile; fileRef = FF753E8932730F5814A4BFFB /* marked.min.js */; };
 		36CF902B2018DFBE86C559CF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0931AC0C0193630B1DF2D0B /* Assets.xcassets */; };
 		40984CFDE7F1CD2D74B13CD9 /* guide.css in Resources */ = {isa = PBXBuildFile; fileRef = 9EC173D83E729AC1FFE9BCD2 /* guide.css */; };
+		45CD6C50901DFA4041A422E1 /* LikedArtworksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB6BD6802BC5428D5F863345 /* LikedArtworksView.swift */; };
 		4E148C133AD1F060D771B56D /* ArtworkImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AE75289E9B9B6B25E4FC0CD /* ArtworkImageView.swift */; };
 		53039619400B347BDE6DE8CD /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = F45EB60C1F1A05AC1A7D617E /* Nuke */; };
+		64B4B37B91FC4B951A1CD124 /* FavoritesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CABA81126EDA43F999FBE885 /* FavoritesManager.swift */; };
+		6B0D440C15A52FC69B751B70 /* ArtDigWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E944D17BBD586E7B0FA4DCD /* ArtDigWidget.swift */; };
 		92518C46CA141DBFD2CBAD31 /* MarkdownLinkParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D64F838E720AC6ED7B25D3A2 /* MarkdownLinkParser.swift */; };
 		9F73AEB62C85BCF6CEE67A3C /* ArtworkLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2357E5F3CFCA1424B5BE0067 /* ArtworkLink.swift */; };
+		B788DDA0EE7A3D011D8E6AA3 /* ArtDigWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 74CB733F4BBF040D5AFA3572 /* ArtDigWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C0F3763ACB6DD40EDD6A5CDC /* FolderAccessManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AA827665162E494C71069BC /* FolderAccessManager.swift */; };
+		C306251C8B6D26B3146AF6F4 /* ArtworkLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2357E5F3CFCA1424B5BE0067 /* ArtworkLink.swift */; };
 		C3068967D92D3DCE3A9199A5 /* MarkdownWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E585DBD6A1B88938C46F19B /* MarkdownWebView.swift */; };
 		D38A758266C3BA35B75C9D64 /* MetImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86EE83246B72D1ED2BDDB9B3 /* MetImageService.swift */; };
 		E0A6605F556E27920E0BFD5A /* guide.html in Resources */ = {isa = PBXBuildFile; fileRef = 8681A8305E364055CD2CE27C /* guide.html */; };
 		F6FEE050222CD84C0EFF62B3 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F2D468F4D32709510695129 /* ContentView.swift */; };
-		1A2B3C4D5E6F70819203A4B5 /* FavoritesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D4E5F60718293A4B5C /* FavoritesManager.swift */; };
-		3C4D5E6F70819203A4B5C6D7 /* LikedArtworksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7E8F9A0B1C2D3E4F5061728 /* LikedArtworksView.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		E191AB8371E2394E25A72353 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EACB78094D5BFF2B85C34301 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 845F91A84D82AD3109F6CD75;
+			remoteInfo = ArtDigWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A91B655811AD20C98C4D254D /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B788DDA0EE7A3D011D8E6AA3 /* ArtDigWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		1F29940EF75C455ED706F77B /* ArtDigWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtDigWidgetBundle.swift; sourceTree = "<group>"; };
 		2357E5F3CFCA1424B5BE0067 /* ArtworkLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkLink.swift; sourceTree = "<group>"; };
+		2E944D17BBD586E7B0FA4DCD /* ArtDigWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtDigWidget.swift; sourceTree = "<group>"; };
 		2F2D468F4D32709510695129 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		4AA827665162E494C71069BC /* FolderAccessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderAccessManager.swift; sourceTree = "<group>"; };
-		B1A2C3D4E5F60718293A4B5C /* FavoritesManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesManager.swift; sourceTree = "<group>"; };
 		6AE75289E9B9B6B25E4FC0CD /* ArtworkImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkImageView.swift; sourceTree = "<group>"; };
-		D7E8F9A0B1C2D3E4F5061728 /* LikedArtworksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LikedArtworksView.swift; sourceTree = "<group>"; };
+		74CB733F4BBF040D5AFA3572 /* ArtDigWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ArtDigWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		7E585DBD6A1B88938C46F19B /* MarkdownWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownWebView.swift; sourceTree = "<group>"; };
 		8681A8305E364055CD2CE27C /* guide.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = guide.html; sourceTree = "<group>"; };
 		86EE83246B72D1ED2BDDB9B3 /* MetImageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetImageService.swift; sourceTree = "<group>"; };
 		9496BAC917963ED024CF0D30 /* MetAPIResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetAPIResponse.swift; sourceTree = "<group>"; };
 		9EC173D83E729AC1FFE9BCD2 /* guide.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = guide.css; sourceTree = "<group>"; };
 		A0797B9C9EE1A9C8956D56AB /* ArtDigApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtDigApp.swift; sourceTree = "<group>"; };
+		C0021840CA8E4E6F87353329 /* ArtDigWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ArtDigWidget.entitlements; sourceTree = "<group>"; };
 		C0931AC0C0193630B1DF2D0B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		CABA81126EDA43F999FBE885 /* FavoritesManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesManager.swift; sourceTree = "<group>"; };
 		D64F838E720AC6ED7B25D3A2 /* MarkdownLinkParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownLinkParser.swift; sourceTree = "<group>"; };
 		D9DC67A1C3704A97059F80F9 /* ArtDig.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ArtDig.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E1FEF1ABAA10A37F84AD61F2 /* GuideListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuideListView.swift; sourceTree = "<group>"; };
+		FB6BD6802BC5428D5F863345 /* LikedArtworksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LikedArtworksView.swift; sourceTree = "<group>"; };
 		FEC9EEF76DE577F669B669A4 /* ArtDig.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ArtDig.entitlements; sourceTree = "<group>"; };
 		FF753E8932730F5814A4BFFB /* marked.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = marked.min.js; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -80,10 +112,21 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
+		2CC811BD2FEAE686F0C1422D /* ArtDigWidget */ = {
+			isa = PBXGroup;
+			children = (
+				C0021840CA8E4E6F87353329 /* ArtDigWidget.entitlements */,
+				2E944D17BBD586E7B0FA4DCD /* ArtDigWidget.swift */,
+				1F29940EF75C455ED706F77B /* ArtDigWidgetBundle.swift */,
+			);
+			path = ArtDigWidget;
+			sourceTree = "<group>";
+		};
 		2E6072ADFBD70E6BF8128EFE /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				D9DC67A1C3704A97059F80F9 /* ArtDig.app */,
+				74CB733F4BBF040D5AFA3572 /* ArtDigWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -92,6 +135,7 @@
 			isa = PBXGroup;
 			children = (
 				A71A44DFC14E279E85F006B1 /* ArtDig */,
+				2CC811BD2FEAE686F0C1422D /* ArtDigWidget */,
 				2E6072ADFBD70E6BF8128EFE /* Products */,
 			);
 			sourceTree = "<group>";
@@ -113,7 +157,7 @@
 		AF1E0B241A1062906CE1DCFF /* Services */ = {
 			isa = PBXGroup;
 			children = (
-				B1A2C3D4E5F60718293A4B5C /* FavoritesManager.swift */,
+				CABA81126EDA43F999FBE885 /* FavoritesManager.swift */,
 				4AA827665162E494C71069BC /* FolderAccessManager.swift */,
 				D64F838E720AC6ED7B25D3A2 /* MarkdownLinkParser.swift */,
 				86EE83246B72D1ED2BDDB9B3 /* MetImageService.swift */,
@@ -127,7 +171,7 @@
 				6AE75289E9B9B6B25E4FC0CD /* ArtworkImageView.swift */,
 				2F2D468F4D32709510695129 /* ContentView.swift */,
 				E1FEF1ABAA10A37F84AD61F2 /* GuideListView.swift */,
-				D7E8F9A0B1C2D3E4F5061728 /* LikedArtworksView.swift */,
+				FB6BD6802BC5428D5F863345 /* LikedArtworksView.swift */,
 				7E585DBD6A1B88938C46F19B /* MarkdownWebView.swift */,
 			);
 			path = Views;
@@ -143,10 +187,12 @@
 				CB98D4C32627CECA854F0DDA /* Sources */,
 				E71B2FE80189843349214190 /* Resources */,
 				D78F306B84C7A67FDB724B0C /* Frameworks */,
+				A91B655811AD20C98C4D254D /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				BD3F2B9D3EAEAB1C6C00E8D9 /* PBXTargetDependency */,
 			);
 			name = ArtDig;
 			packageProductDependencies = (
@@ -156,6 +202,23 @@
 			productName = ArtDig;
 			productReference = D9DC67A1C3704A97059F80F9 /* ArtDig.app */;
 			productType = "com.apple.product-type.application";
+		};
+		845F91A84D82AD3109F6CD75 /* ArtDigWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5B46418B657E932E878A7CF3 /* Build configuration list for PBXNativeTarget "ArtDigWidget" */;
+			buildPhases = (
+				D3C2ED3F68EF3C2CD8370C72 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ArtDigWidget;
+			packageProductDependencies = (
+			);
+			productName = ArtDigWidget;
+			productReference = 74CB733F4BBF040D5AFA3572 /* ArtDigWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -167,6 +230,10 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					7F3C9C30201F3AC4BF4D005F = {
+						DevelopmentTeam = 45XRDF3YX3;
+						ProvisioningStyle = Automatic;
+					};
+					845F91A84D82AD3109F6CD75 = {
 						DevelopmentTeam = 45XRDF3YX3;
 						ProvisioningStyle = Automatic;
 					};
@@ -190,6 +257,7 @@
 			projectRoot = "";
 			targets = (
 				7F3C9C30201F3AC4BF4D005F /* ArtDig */,
+				845F91A84D82AD3109F6CD75 /* ArtDigWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -217,10 +285,10 @@
 				4E148C133AD1F060D771B56D /* ArtworkImageView.swift in Sources */,
 				9F73AEB62C85BCF6CEE67A3C /* ArtworkLink.swift in Sources */,
 				F6FEE050222CD84C0EFF62B3 /* ContentView.swift in Sources */,
-				1A2B3C4D5E6F70819203A4B5 /* FavoritesManager.swift in Sources */,
+				64B4B37B91FC4B951A1CD124 /* FavoritesManager.swift in Sources */,
 				C0F3763ACB6DD40EDD6A5CDC /* FolderAccessManager.swift in Sources */,
 				16353B21B7DDB56869BF18B7 /* GuideListView.swift in Sources */,
-				3C4D5E6F70819203A4B5C6D7 /* LikedArtworksView.swift in Sources */,
+				45CD6C50901DFA4041A422E1 /* LikedArtworksView.swift in Sources */,
 				92518C46CA141DBFD2CBAD31 /* MarkdownLinkParser.swift in Sources */,
 				C3068967D92D3DCE3A9199A5 /* MarkdownWebView.swift in Sources */,
 				191D55E87B12CC6D8FC9DD31 /* MetAPIResponse.swift in Sources */,
@@ -228,7 +296,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D3C2ED3F68EF3C2CD8370C72 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6B0D440C15A52FC69B751B70 /* ArtDigWidget.swift in Sources */,
+				0D23E2A009508FD0082507B6 /* ArtDigWidgetBundle.swift in Sources */,
+				C306251C8B6D26B3146AF6F4 /* ArtworkLink.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		BD3F2B9D3EAEAB1C6C00E8D9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 845F91A84D82AD3109F6CD75 /* ArtDigWidget */;
+			targetProxy = E191AB8371E2394E25A72353 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		5AAB8B7300F0B639001CFB24 /* Release */ = {
@@ -370,6 +456,46 @@
 			};
 			name = Release;
 		};
+		A8AA760981C21B84F0E7F001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ArtDigWidget/ArtDigWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 45XRDF3YX3;
+				INFOPLIST_FILE = ArtDigWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.artdig.ArtDig.ArtDigWidget;
+				SDKROOT = xros;
+				TARGETED_DEVICE_FAMILY = 7;
+			};
+			name = Release;
+		};
+		B00E7C975E6FF3A2767EF122 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ArtDigWidget/ArtDigWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 45XRDF3YX3;
+				INFOPLIST_FILE = ArtDigWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.artdig.ArtDig.ArtDigWidget;
+				SDKROOT = xros;
+				TARGETED_DEVICE_FAMILY = 7;
+			};
+			name = Debug;
+		};
 		CBFDF0A21D459ED8B781858B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -398,6 +524,15 @@
 			buildConfigurations = (
 				6CB841033B683332EFAF9833 /* Debug */,
 				93A85749D365AE239BE0009D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		5B46418B657E932E878A7CF3 /* Build configuration list for PBXNativeTarget "ArtDigWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B00E7C975E6FF3A2767EF122 /* Debug */,
+				A8AA760981C21B84F0E7F001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
