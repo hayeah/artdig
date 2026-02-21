@@ -1,0 +1,6 @@
+[submodule "data/nga"]
+	path = data/nga
+	url = https://github.com/NationalGalleryOfArt/opendata.git
+[submodule "data/met"]
+	path = data/met
+	url = https://github.com/metmuseum/openaccess.git

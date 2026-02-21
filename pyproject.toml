@@ -1,0 +1,17 @@
+[project]
+name = "artdig"
+version = "0.1.0"
+description = "Public domain art catalogue backed by DuckDB"
+readme = "README.md"
+authors = [
+    { name = "Howard Yeh", email = "hayeah@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = ["duckdb"]
+
+[dependency-groups]
+dev = ["hayeah-pymake", "pytest", "ruff"]
+
+[build-system]
+requires = ["uv_build>=0.10.3,<0.11.0"]
+build-backend = "uv_build"
