@@ -12,3 +12,7 @@ output/
 .idea/
 .vscode/
 *.swp
+
+# Xcode
+app/*.xcodeproj
+app/build/

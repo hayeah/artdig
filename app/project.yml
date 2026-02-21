@@ -1,0 +1,34 @@
+name: ArtDig
+options:
+  bundleIdPrefix: com.artdig
+  deploymentTarget:
+    visionOS: "26.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+packages:
+  Nuke:
+    url: https://github.com/kean/Nuke
+    from: "12.0.0"
+targets:
+  ArtDig:
+    type: application
+    platform: visionOS
+    sources:
+      - path: ArtDig
+        excludes:
+          - Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.artdig.ArtDig
+        INFOPLIST_FILE: ArtDig/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ArtDig/ArtDig.entitlements
+        DEVELOPMENT_TEAM: 45XRDF3YX3
+        CODE_SIGN_STYLE: Automatic
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+    dependencies:
+      - package: Nuke
+        product: Nuke
+      - package: Nuke
+        product: NukeUI

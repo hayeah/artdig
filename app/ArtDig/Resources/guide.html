@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <link rel="stylesheet" href="guide.css">
+    <script src="marked.min.js"></script>
+</head>
+<body>
+    <article id="content"></article>
+    <script>
+        function renderMarkdown(md) {
+            document.getElementById('content').innerHTML = marked.parse(md);
+            window.scrollTo(0, 0);
+        }
+
+        document.addEventListener('click', function(e) {
+            var link = e.target.closest('a');
+            if (link && link.href && !link.href.startsWith('file:')) {
+                e.preventDefault();
+                e.stopPropagation();
+                window.webkit.messageHandlers.linkTapped.postMessage(link.href);
+            }
+        }, true);
+    </script>
+</body>
+</html>
