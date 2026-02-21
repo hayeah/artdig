@@ -1,9 +1,14 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum SidebarSelection: Hashable {
+    case guide(URL)
+    case liked
+}
+
 struct ContentView: View {
     @State private var folderManager = FolderAccessManager()
-    @State private var selectedFile: URL?
+    @State private var selection: SidebarSelection?
     @State private var markdownContent: String?
     @Environment(\.openWindow) private var openWindow
 
@@ -11,17 +16,28 @@ struct ContentView: View {
         NavigationSplitView {
             GuideListView(
                 folderManager: folderManager,
-                selectedFile: $selectedFile
+                selection: $selection
             )
         } detail: {
-            if let content = markdownContent {
-                MarkdownWebView(
-                    markdownContent: content,
-                    onArtworkTapped: { artwork in
-                        openWindow(id: "imageViewer", value: artwork)
-                    }
-                )
-            } else {
+            switch selection {
+            case .liked:
+                LikedArtworksView()
+            case .guide:
+                if let content = markdownContent {
+                    MarkdownWebView(
+                        markdownContent: content,
+                        onArtworkTapped: { artwork in
+                            openWindow(id: "imageViewer", value: artwork)
+                        }
+                    )
+                } else {
+                    ContentUnavailableView(
+                        "Select a Guide",
+                        systemImage: "doc.richtext",
+                        description: Text("Choose a markdown file from the sidebar")
+                    )
+                }
+            case nil:
                 ContentUnavailableView(
                     "Select a Guide",
                     systemImage: "doc.richtext",
@@ -29,8 +45,12 @@ struct ContentView: View {
                 )
             }
         }
-        .onChange(of: selectedFile) { _, newFile in
-            loadMarkdownFile(newFile)
+        .onChange(of: selection) { _, newSelection in
+            if case .guide(let url) = newSelection {
+                loadMarkdownFile(url)
+            } else {
+                markdownContent = nil
+            }
         }
         .fileImporter(
             isPresented: $folderManager.isShowingPicker,
@@ -42,11 +62,7 @@ struct ContentView: View {
         }
     }
 
-    private func loadMarkdownFile(_ url: URL?) {
-        guard let url else {
-            markdownContent = nil
-            return
-        }
+    private func loadMarkdownFile(_ url: URL) {
         do {
             markdownContent = try String(contentsOf: url, encoding: .utf8)
         } catch {

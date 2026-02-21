@@ -9,4 +9,9 @@ struct ArtworkLink: Codable, Hashable {
     let sourceID: String
     let title: String?
     let imageURL: URL?
+
+    var metWebURL: URL? {
+        guard source == .met else { return nil }
+        return URL(string: "https://www.metmuseum.org/art/collection/search/\(sourceID)")
+    }
 }

@@ -10,6 +10,9 @@ struct ArtworkImageView: View {
     @State private var downloadedBytes: Int64 = 0
     @State private var errorMessage: String?
     @State private var fullURL: URL?
+    @Environment(FavoritesManager.self) private var favorites
+    @Environment(\.openURL) private var openURL
+    @Environment(\.dismiss) private var dismiss
 
     private var displayImage: UIImage? {
         fullImage ?? previewImage
@@ -26,6 +29,18 @@ struct ArtworkImageView: View {
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
+                    .overlay(alignment: .bottomLeading) {
+                        Button {
+                            favorites.toggle(artwork)
+                        } label: {
+                            Image(systemName: favorites.isLiked(artwork) ? "heart.fill" : "heart")
+                                .font(.title2)
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(favorites.isLiked(artwork) ? .pink : .white)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(12)
+                    }
                     .overlay(alignment: .bottomTrailing) {
                         if isLoadingFull {
                             // Download progress
@@ -94,6 +109,11 @@ struct ArtworkImageView: View {
         }
 
         if previewImage == nil && fullImage == nil {
+            if artwork.source == .met, let webURL = artwork.metWebURL {
+                openURL(webURL)
+                dismiss()
+                return
+            }
             errorMessage = "No image available"
         }
     }
