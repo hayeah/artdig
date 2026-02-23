@@ -6,10 +6,11 @@ import os
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from urllib.request import Request, urlopen
 
 import duckdb
+
+from artdig.common import now_utc
 
 OAI_ENDPOINT = "https://data.rijksmuseum.nl/oai"
 
@@ -68,10 +69,6 @@ CREATE TABLE IF NOT EXISTS rijks_harvest_state (
     value               VARCHAR
 );
 """
-
-
-def _now_utc() -> datetime:
-    return datetime.now(UTC)
 
 
 def _fetch_xml(url: str, timeout: float = 60.0) -> ET.Element:
@@ -330,7 +327,7 @@ class RijksIngester:
                 rec["rights_url"],
                 rec["source_url"],
                 rec["datestamp"],
-                _now_utc(),
+                now_utc(),
                 rec["raw_xml"],
             ],
         )

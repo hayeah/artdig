@@ -7,20 +7,17 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import duckdb
 
+from artdig.common import now_utc
+
 ACTIVITY_ROOT = "https://data.getty.edu/museum/collection/activity-stream"
 OBJECT_PREFIX = "https://data.getty.edu/museum/collection/object/"
 SPARQL_ENDPOINT = "https://data.getty.edu/museum/collection/sparql"
-
-
-def _now_utc() -> datetime:
-    return datetime.now(UTC)
 
 
 def _fetch_json(url: str, timeout: float = 10.0) -> dict:
@@ -287,7 +284,7 @@ class GettyIngester:
                 _extract_iiif_manifest_url(obj),
                 _extract_image_url(obj),
                 _is_metadata_cc0(obj),
-                _now_utc(),
+                now_utc(),
                 json.dumps(obj),
             ],
         )
@@ -361,7 +358,6 @@ class GettyIngester:
             try:
                 obj = _fetch_json(object_url)
             except HTTPError as e:
-                # Deleted/private object records may return 404/403; keep going.
                 print(f"Getty: skipping {object_url} ({e.code})")
                 continue
             except URLError as e:
@@ -397,8 +393,7 @@ LIMIT 200000
         ]
         urls = [u for u in urls if isinstance(u, str)]
 
-        now = _now_utc()
-        # Bulk insert in chunks to keep memory stable on large index loads.
+        now = now_utc()
         self.conn.execute("SET preserve_insertion_order = false")
         chunk_size = 5000
         for start in range(0, len(urls), chunk_size):
@@ -411,7 +406,6 @@ LIMIT 200000
                 [(u, now) for u in chunk],
             )
 
-        # Any object we already fetched should be marked done.
         self.conn.execute(
             """
             UPDATE getty_object_index idx
@@ -455,7 +449,7 @@ LIMIT 200000
                     SET status = 'done', fetched_at = ?, error_message = NULL
                     WHERE object_url = ?
                     """,
-                    [_now_utc(), object_id],
+                    [now_utc(), object_id],
                 )
                 success += 1
             except HTTPError as e:

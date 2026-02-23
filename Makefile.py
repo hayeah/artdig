@@ -11,7 +11,8 @@ from pymake import sh, task
 
 OUTPUT_DIR = Path("output")
 TOUCH_DIR = OUTPUT_DIR / ".touch"
-DATABASE = OUTPUT_DIR / "artdig.duckdb"
+MET_DATABASE = OUTPUT_DIR / "met.duckdb"
+NGA_DATABASE = OUTPUT_DIR / "nga.duckdb"
 GETTY_DATABASE = OUTPUT_DIR / "getty.duckdb"
 RIJKS_DATABASE = OUTPUT_DIR / "rijks.duckdb"
 
@@ -39,13 +40,16 @@ def submodules():
     touch=TOUCH_DIR / "ingest_met",
 )
 def ingest_met():
-    """Ingest Met Museum CSV into DuckDB."""
+    """Ingest Met Museum CSV into output/met.duckdb."""
     TOUCH_DIR.mkdir(parents=True, exist_ok=True)
-    from artdig.db import ArtdigDB
-    from artdig.ingest.met import MetIngester
+    from artdig.common import open_db
+    from artdig.met.ingest import MetIngester
 
-    with ArtdigDB(DATABASE) as db:
-        MetIngester(db.conn).run()
+    conn = open_db(MET_DATABASE)
+    try:
+        MetIngester(conn).run()
+    finally:
+        conn.close()
 
 
 @task(
@@ -53,18 +57,21 @@ def ingest_met():
     touch=TOUCH_DIR / "ingest_nga",
 )
 def ingest_nga():
-    """Ingest NGA CSVs into DuckDB."""
+    """Ingest NGA CSVs into output/nga.duckdb."""
     TOUCH_DIR.mkdir(parents=True, exist_ok=True)
-    from artdig.db import ArtdigDB
-    from artdig.ingest.nga import NgaIngester
+    from artdig.common import open_db
+    from artdig.nga.ingest import NgaIngester
 
-    with ArtdigDB(DATABASE) as db:
-        NgaIngester(db.conn).run()
+    conn = open_db(NGA_DATABASE)
+    try:
+        NgaIngester(conn).run()
+    finally:
+        conn.close()
 
 
 @task()
 def ingest_getty():
-    """Ingest Getty ActivityStream + objects into a dedicated DuckDB.
+    """Ingest Getty ActivityStream + objects into output/getty.duckdb.
 
     Optional environment variables:
       GETTY_FROM_PAGE=1
@@ -73,11 +80,10 @@ def ingest_getty():
       GETTY_MAX_OBJECTS=500
       GETTY_SLEEP_SECONDS=0.02
     """
-    import duckdb
-    from artdig.ingest.getty import GettyIngester, config_from_env
+    from artdig.common import open_db
+    from artdig.getty.ingest import GettyIngester, config_from_env
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    conn = duckdb.connect(str(GETTY_DATABASE))
+    conn = open_db(GETTY_DATABASE)
     try:
         cfg = config_from_env(GETTY_DATABASE)
         GettyIngester(conn).run(cfg)
@@ -87,7 +93,7 @@ def ingest_getty():
 
 @task()
 def ingest_rijks():
-    """Harvest Rijksmuseum collection via OAI-PMH into a dedicated DuckDB.
+    """Harvest Rijksmuseum collection via OAI-PMH into output/rijks.duckdb.
 
     Supports resumption — safe to interrupt and restart.
     Skips objects already in the DB (only adds set memberships).
@@ -98,11 +104,10 @@ def ingest_rijks():
       RIJKS_SLEEP_SECONDS=0.1
       RIJKS_RESUME=1
     """
-    import duckdb
-    from artdig.ingest.rijks import RijksIngester, config_from_env
+    from artdig.common import open_db
+    from artdig.rijks.ingest import RijksIngester, config_from_env
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    conn = duckdb.connect(str(RIJKS_DATABASE))
+    conn = open_db(RIJKS_DATABASE)
     try:
         cfg = config_from_env()
         RijksIngester(conn).run(cfg)
@@ -113,9 +118,9 @@ def ingest_rijks():
 @task()
 def stats_rijks():
     """Print basic stats for the Rijksmuseum-only database."""
-    import duckdb
+    from artdig.common import open_db
 
-    conn = duckdb.connect(str(RIJKS_DATABASE), read_only=True)
+    conn = open_db(RIJKS_DATABASE)
     try:
         rows = conn.execute("""
             SELECT
@@ -138,11 +143,10 @@ def stats_rijks():
 @task()
 def ingest_getty_index():
     """Build Getty object index from SPARQL into output/getty.duckdb."""
-    import duckdb
-    from artdig.ingest.getty import GettyIngester
+    from artdig.common import open_db
+    from artdig.getty.ingest import GettyIngester
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    conn = duckdb.connect(str(GETTY_DATABASE))
+    conn = open_db(GETTY_DATABASE)
     try:
         GettyIngester(conn).build_object_index_from_sparql()
     finally:
@@ -157,11 +161,10 @@ def ingest_getty_pending():
       GETTY_PENDING_LIMIT=1000
       GETTY_SLEEP_SECONDS=0.02
     """
-    import duckdb
-    from artdig.ingest.getty import GettyIngester, pending_limit_from_env
+    from artdig.common import open_db
+    from artdig.getty.ingest import GettyIngester, pending_limit_from_env
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    conn = duckdb.connect(str(GETTY_DATABASE))
+    conn = open_db(GETTY_DATABASE)
     try:
         limit = pending_limit_from_env(1000)
         sleep_seconds = float(os.getenv("GETTY_SLEEP_SECONDS", "0.02"))
@@ -176,22 +179,12 @@ def ingest():
     pass
 
 
-@task(inputs=[ingest])
-def stats():
-    """Print catalogue summary statistics."""
-    from artdig.db import ArtdigDB
-    from artdig.stats import CatalogueStats
-
-    with ArtdigDB(DATABASE) as db:
-        CatalogueStats(db.conn).run()
-
-
 @task()
 def stats_getty():
     """Print basic stats for the Getty-only database."""
-    import duckdb
+    from artdig.common import open_db
 
-    conn = duckdb.connect(str(GETTY_DATABASE), read_only=True)
+    conn = open_db(GETTY_DATABASE)
     try:
         rows = conn.execute("""
             SELECT

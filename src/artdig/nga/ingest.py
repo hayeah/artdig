@@ -1,19 +1,42 @@
-"""NGA (National Gallery of Art) CSV ingestion into the artdig database."""
+"""NGA (National Gallery of Art) CSV ingestion into a dedicated DuckDB database."""
 
 from pathlib import Path
 
 import duckdb
 
 NGA_DATA = Path("data/nga/data")
-NGA_OBJECTS = NGA_DATA / "objects.csv"
-NGA_CONSTITUENTS = NGA_DATA / "constituents.csv"
-NGA_OBJ_CONSTITUENTS = NGA_DATA / "objects_constituents.csv"
-NGA_PUBLISHED_IMAGES = NGA_DATA / "published_images.csv"
-NGA_OBJECTS_TERMS = NGA_DATA / "objects_terms.csv"
+
+SCHEMA_DDL = """
+CREATE TABLE IF NOT EXISTS nga_objects (
+    objectid            VARCHAR PRIMARY KEY,
+    title               VARCHAR,
+    object_type         VARCHAR,
+    artist_name         VARCHAR,
+    date_display        VARCHAR,
+    date_start          INTEGER,
+    date_end            INTEGER,
+    medium              VARCHAR,
+    dimensions          VARCHAR,
+    classification      VARCHAR,
+    image_url           VARCHAR,
+    source_url          VARCHAR,
+    is_public_domain    BOOLEAN,
+    department          VARCHAR,
+    culture             VARCHAR,
+    period              VARCHAR,
+    artist_nationality  VARCHAR,
+    artist_birth_year   INTEGER,
+    artist_death_year   INTEGER,
+    thumbnail_url       VARCHAR,
+    credit_line         VARCHAR,
+    wikidata_id         VARCHAR,
+    extra               JSON
+);
+"""
 
 
 class NgaIngester:
-    """Ingests NGA open-data CSVs into the artworks table."""
+    """Ingests NGA open-data CSVs into nga_objects table."""
 
     def __init__(self, conn: duckdb.DuckDBPyConnection, data_dir: Path = NGA_DATA):
         self.conn = conn
@@ -22,12 +45,15 @@ class NgaIngester:
         self.obj_constituents = str(data_dir / "objects_constituents.csv")
         self.published_images = str(data_dir / "published_images.csv")
         self.objects_terms = str(data_dir / "objects_terms.csv")
+        self._ensure_schema()
+
+    def _ensure_schema(self):
+        self.conn.execute(SCHEMA_DDL)
 
     def run(self):
         self.conn.execute(f"""
-            INSERT OR REPLACE INTO artworks
+            INSERT OR REPLACE INTO nga_objects
             WITH
-            -- Pick primary artist (first by display order, artist roletype only)
             primary_artist AS (
                 SELECT
                     oc.objectid,
@@ -44,7 +70,6 @@ class NgaIngester:
                     ON oc.constituentid = c.constituentid
                 WHERE oc.roletype = 'artist'
             ),
-            -- Pick primary image (viewtype = 'primary', first by sequence)
             primary_image AS (
                 SELECT
                     depictstmsobjectid AS objectid,
@@ -57,7 +82,6 @@ class NgaIngester:
                 FROM read_csv_auto('{self.published_images}', all_varchar=true)
                 WHERE viewtype = 'primary'
             ),
-            -- Culture from School term type (pick first alphabetically)
             school_terms AS (
                 SELECT
                     objectid,
@@ -66,7 +90,6 @@ class NgaIngester:
                 WHERE termtype = 'School'
                 GROUP BY objectid
             ),
-            -- Period from Style term type (pick first alphabetically)
             style_terms AS (
                 SELECT
                     objectid,
@@ -76,35 +99,31 @@ class NgaIngester:
                 GROUP BY objectid
             )
             SELECT
-                'nga'                                           AS source,
-                o.objectid                                      AS source_id,
+                o.objectid                                      AS objectid,
                 o.title                                         AS title,
+                NULLIF(o.classification, '')                     AS object_type,
                 pa.artist_name                                  AS artist_name,
-                pa.nationality                                  AS artist_nationality,
-                pa.birth_year                                   AS artist_birth_year,
-                pa.death_year                                   AS artist_death_year,
-                NULLIF(o.displaydate, '')                       AS date_display,
-                TRY_CAST(o.beginyear AS INTEGER)                AS date_start,
-                TRY_CAST(o.endyear AS INTEGER)                  AS date_end,
-                NULLIF(o.medium, '')                             AS medium,
-                NULLIF(o.dimensions, '')                        AS dimensions,
-                NULLIF(o.classification, '')                     AS classification,
-                sc.culture                                      AS culture,
-                st.period                                       AS period,
-                NULLIF(o.departmentabbr, '')                     AS department,
-                NULL                                            AS country,
-                NULL                                            AS city,
-                NULL                                            AS region,
-                o.accessioned = '1'                             AS is_public_domain,
-                NULLIF(o.creditline, '')                         AS credit_line,
-                -- IIIF full image URL
+                NULLIF(o.displaydate, '')                        AS date_display,
+                TRY_CAST(o.beginyear AS INTEGER)                 AS date_start,
+                TRY_CAST(o.endyear AS INTEGER)                   AS date_end,
+                NULLIF(o.medium, '')                              AS medium,
+                NULLIF(o.dimensions, '')                          AS dimensions,
+                NULLIF(o.classification, '')                      AS classification,
                 CASE WHEN pi.iiifurl IS NOT NULL
                      THEN pi.iiifurl || '/full/max/0/default.jpg'
-                     ELSE NULL END                              AS image_url,
-                pi.iiifthumburl                                 AS thumbnail_url,
+                     ELSE NULL END                               AS image_url,
                 'https://www.nga.gov/collection/art-object-page.' || o.objectid || '.html'
-                                                                AS source_url,
-                NULLIF(o.wikidataid, '')                         AS wikidata_id,
+                                                                 AS source_url,
+                o.accessioned = '1'                              AS is_public_domain,
+                NULLIF(o.departmentabbr, '')                      AS department,
+                sc.culture                                       AS culture,
+                st.period                                        AS period,
+                pa.nationality                                   AS artist_nationality,
+                pa.birth_year                                    AS artist_birth_year,
+                pa.death_year                                    AS artist_death_year,
+                pi.iiifthumburl                                  AS thumbnail_url,
+                NULLIF(o.creditline, '')                          AS credit_line,
+                NULLIF(o.wikidataid, '')                          AS wikidata_id,
                 to_json({{
                     accession_num:                  NULLIF(o.accessionnum, ''),
                     sub_classification:             NULLIF(o.subclassification, ''),
@@ -118,7 +137,7 @@ class NgaIngester:
                     inscription:                    NULLIF(o.inscription, ''),
                     markings:                       NULLIF(o.markings, ''),
                     attribution_inverted:           NULLIF(o.attributioninverted, '')
-                }})                                             AS extras
+                }})                                              AS extra
             FROM read_csv_auto('{self.objects}', all_varchar=true) o
             LEFT JOIN primary_artist pa
                 ON o.objectid = pa.objectid AND pa.rn = 1
@@ -131,6 +150,6 @@ class NgaIngester:
             WHERE o.objectid IS NOT NULL
         """)
         count = self.conn.execute(
-            "SELECT count(*) FROM artworks WHERE source = 'nga'"
+            "SELECT count(*) FROM nga_objects"
         ).fetchone()[0]
-        print(f"NGA: ingested {count:,} artworks")
+        print(f"NGA: ingested {count:,} objects into nga_objects")

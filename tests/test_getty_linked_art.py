@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from artdig.getty_linked_art import GettyObject, convert
+from artdig.getty.linked_art import GettyObject, convert
 
 CORPUS_DIR = Path(__file__).resolve().parent.parent / "data" / "getty" / "corpus"
 
