@@ -123,6 +123,19 @@ def ingest_rijks(
 
 
 @task()
+def reparse_rijks():
+    """Re-parse all Rijks objects from stored raw XML (no network)."""
+    from artdig.common import open_db
+    from artdig.rijks.ingest import RijksIngester
+
+    conn = open_db(RIJKS_DATABASE)
+    try:
+        RijksIngester(conn).reparse()
+    finally:
+        conn.close()
+
+
+@task()
 def stats_rijks():
     """Print basic stats for the Rijksmuseum-only database."""
     from artdig.common import open_db

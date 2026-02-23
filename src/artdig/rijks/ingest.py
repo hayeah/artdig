@@ -215,16 +215,26 @@ def _parse_record_metadata(record_el: ET.Element, identifier: str, datestamp: st
     creator_uri = _attr(cho, "dc:creator", f"{{{NS['rdf']}}}resource")
     creator = _parse_creator(rdf, creator_uri)
 
-    # Image from aggregation
-    image_url = _attr(agg, "edm:isShownBy", f"{{{NS['rdf']}}}resource") if agg is not None else None
-
-    # IIIF service URL
+    # Image from aggregation — two XML shapes:
+    #   <edm:isShownBy rdf:resource="...url..." />
+    #   <edm:isShownBy><edm:WebResource rdf:about="...url...">...</edm:WebResource></edm:isShownBy>
+    image_url = None
     iiif_service_url = None
-    web_resource = rdf.find(".//edm:WebResource", NS) if agg is not None else None
-    if web_resource is not None:
-        svc = web_resource.find("svcs:has_service", NS)
-        if svc is not None:
-            iiif_service_url = svc.get(f"{{{NS['rdf']}}}resource")
+    if agg is not None:
+        image_url = _attr(agg, "edm:isShownBy", f"{{{NS['rdf']}}}resource")
+        if image_url is None:
+            shown_by = agg.find("edm:isShownBy", NS)
+            if shown_by is not None:
+                web_resource = shown_by.find("edm:WebResource", NS)
+                if web_resource is not None:
+                    image_url = web_resource.get(f"{{{NS['rdf']}}}about")
+
+        # IIIF service URL
+        web_resource = rdf.find(".//edm:WebResource", NS)
+        if web_resource is not None:
+            svc = web_resource.find("svcs:has_service", NS)
+            if svc is not None:
+                iiif_service_url = svc.get(f"{{{NS['rdf']}}}resource")
 
     # Rights
     rights_url = _attr(agg, "edm:rights", f"{{{NS['rdf']}}}resource") if agg is not None else None
@@ -249,7 +259,7 @@ def _parse_record_metadata(record_el: ET.Element, identifier: str, datestamp: st
         "image_url": image_url,
         "iiif_service_url": iiif_service_url,
         "rights_url": rights_url,
-        "source_url": identifier.replace("https://id.", "https://www.") if identifier else None,
+        "source_url": f"https://www.rijksmuseum.nl/nl/collectie/{_text(cho, 'dc:identifier')}" if _text(cho, "dc:identifier") else None,
         "datestamp": datestamp,
         "raw_xml": raw_xml,
     }
@@ -468,6 +478,26 @@ class RijksIngester:
             f"Rijks [{set_label}]: done — {total_new} new, {total_skipped} skipped, "
             f"{count:,} total objects ({with_image:,} with images)"
         )
+
+    def reparse(self):
+        """Re-parse all objects from stored raw_xml without re-downloading."""
+        rows = self.conn.execute(
+            "SELECT identifier, datestamp, raw_xml FROM rijks_objects"
+        ).fetchall()
+
+        updated = 0
+        for identifier, datestamp, raw_xml in rows:
+            record_el = ET.fromstring(raw_xml)
+            rec = _parse_record_metadata(record_el, identifier, str(datestamp) if datestamp else None)
+            if rec is None:
+                continue
+            self._upsert_record(rec)
+            updated += 1
+
+        with_image = self.conn.execute(
+            "SELECT count(*) FROM rijks_objects WHERE image_url IS NOT NULL"
+        ).fetchone()[0]
+        print(f"Rijks: reparsed {updated:,} objects ({with_image:,} with images)")
 
     def run(self, cfg: RijksConfig):
         self.sync_sets()

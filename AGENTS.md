@@ -51,3 +51,25 @@ src/artdig/
 ```
 
 Each museum has its own DuckDB file with a bespoke schema. Common columns across museums: `title`, `object_type`, `artist_name`, `date_display`, `date_start`, `date_end`, `medium`, `classification`, `image_url`, `source_url`, plus a JSON `extra` column for everything else.
+
+## Rijksmuseum Harvesting
+
+Rijks uses OAI-PMH with curated "sets". Before harvesting, run `ingest_rijks` once (with a low `max_pages`) to sync the set list, then query the DB to see what's available:
+
+```sql
+-- in output/rijks.duckdb
+SELECT set_spec, set_name FROM rijks_sets ORDER BY set_spec;
+```
+
+Notable sets:
+- `260213` — Top 100
+- `260214` — Top 1000
+- `260239` — Entire Public Domain Set
+
+Then harvest a specific set:
+
+```bash
+uv run pymake ingest_rijks --vars ingest_rijks.set=260214
+```
+
+When the user asks to harvest Rijks objects, always ask which set they want. Show them the query above so they can pick.
