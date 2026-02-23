@@ -4,7 +4,6 @@ Run with: pymake
 List tasks: pymake list
 """
 
-import os
 from pathlib import Path
 
 from pymake import sh, task
@@ -70,46 +69,54 @@ def ingest_nga():
 
 
 @task()
-def ingest_getty():
-    """Ingest Getty ActivityStream + objects into output/getty.duckdb.
-
-    Optional environment variables:
-      GETTY_FROM_PAGE=1
-      GETTY_TO_PAGE=200
-      GETTY_MAX_PAGES=50
-      GETTY_MAX_OBJECTS=500
-      GETTY_SLEEP_SECONDS=0.02
-    """
+def ingest_getty(
+    from_page: int = 1,
+    to_page: int | None = None,
+    max_pages: int | None = None,
+    max_objects: int | None = None,
+    sleep_seconds: float = 0.02,
+):
+    """Ingest Getty ActivityStream + objects into output/getty.duckdb."""
     from artdig.common import open_db
-    from artdig.getty.ingest import GettyIngester, config_from_env
+    from artdig.getty.ingest import GettyConfig, GettyIngester
 
     conn = open_db(GETTY_DATABASE)
     try:
-        cfg = config_from_env(GETTY_DATABASE)
+        cfg = GettyConfig(
+            from_page=from_page,
+            to_page=to_page,
+            max_pages=max_pages,
+            max_objects=max_objects,
+            sleep_seconds=sleep_seconds,
+        )
         GettyIngester(conn).run(cfg)
     finally:
         conn.close()
 
 
 @task()
-def ingest_rijks():
+def ingest_rijks(
+    set: str | None = None,
+    max_pages: int | None = None,
+    sleep_seconds: float = 0.1,
+    resume: bool = True,
+):
     """Harvest Rijksmuseum collection via OAI-PMH into output/rijks.duckdb.
 
     Supports resumption — safe to interrupt and restart.
     Skips objects already in the DB (only adds set memberships).
-
-    Optional environment variables:
-      RIJKS_SET=260213         # OAI-PMH set to harvest (omit for all)
-      RIJKS_MAX_PAGES=100
-      RIJKS_SLEEP_SECONDS=0.1
-      RIJKS_RESUME=1
     """
     from artdig.common import open_db
-    from artdig.rijks.ingest import RijksIngester, config_from_env
+    from artdig.rijks.ingest import RijksConfig, RijksIngester
 
     conn = open_db(RIJKS_DATABASE)
     try:
-        cfg = config_from_env()
+        cfg = RijksConfig(
+            set_spec=set,
+            max_pages=max_pages,
+            sleep_seconds=sleep_seconds,
+            resume=resume,
+        )
         RijksIngester(conn).run(cfg)
     finally:
         conn.close()
@@ -154,20 +161,16 @@ def ingest_getty_index():
 
 
 @task()
-def ingest_getty_pending():
-    """Hydrate pending Getty object URLs from index.
-
-    Optional environment variables:
-      GETTY_PENDING_LIMIT=1000
-      GETTY_SLEEP_SECONDS=0.02
-    """
+def ingest_getty_pending(
+    limit: int = 1000,
+    sleep_seconds: float = 0.02,
+):
+    """Hydrate pending Getty object URLs from index."""
     from artdig.common import open_db
-    from artdig.getty.ingest import GettyIngester, pending_limit_from_env
+    from artdig.getty.ingest import GettyIngester
 
     conn = open_db(GETTY_DATABASE)
     try:
-        limit = pending_limit_from_env(1000)
-        sleep_seconds = float(os.getenv("GETTY_SLEEP_SECONDS", "0.02"))
         GettyIngester(conn).hydrate_pending_objects(limit=limit, sleep_seconds=sleep_seconds)
     finally:
         conn.close()

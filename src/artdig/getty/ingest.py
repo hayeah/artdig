@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -172,7 +170,6 @@ def _event_object_url(item: dict) -> str | None:
 
 @dataclass(slots=True)
 class GettyConfig:
-    db_path: Path = Path("output/getty.duckdb")
     from_page: int = 1
     to_page: int | None = None
     max_pages: int | None = None
@@ -506,25 +503,3 @@ LIMIT 200000
         print(f"Getty: dataset ready in DB (activity={activity_count:,}, objects={object_count:,})")
 
 
-def config_from_env(db_path: Path | None = None) -> GettyConfig:
-    from_page = int(os.getenv("GETTY_FROM_PAGE", "1"))
-    to_page_value = os.getenv("GETTY_TO_PAGE", "").strip()
-    to_page = int(to_page_value) if to_page_value else None
-    max_pages_value = os.getenv("GETTY_MAX_PAGES", "").strip()
-    max_pages = int(max_pages_value) if max_pages_value else None
-    max_objects_value = os.getenv("GETTY_MAX_OBJECTS", "").strip()
-    max_objects = int(max_objects_value) if max_objects_value else None
-    sleep_seconds = float(os.getenv("GETTY_SLEEP_SECONDS", "0.02"))
-    return GettyConfig(
-        db_path=db_path or Path("output/getty.duckdb"),
-        from_page=from_page,
-        to_page=to_page,
-        max_pages=max_pages,
-        max_objects=max_objects,
-        sleep_seconds=sleep_seconds,
-    )
-
-
-def pending_limit_from_env(default: int = 1000) -> int:
-    value = os.getenv("GETTY_PENDING_LIMIT", "").strip()
-    return int(value) if value else default

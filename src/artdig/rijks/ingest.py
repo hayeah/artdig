@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
@@ -475,15 +474,3 @@ class RijksIngester:
         self.harvest(cfg)
 
 
-def config_from_env() -> RijksConfig:
-    set_spec = os.getenv("RIJKS_SET", "").strip() or None
-    max_pages_val = os.getenv("RIJKS_MAX_PAGES", "").strip()
-    max_pages = int(max_pages_val) if max_pages_val else None
-    sleep_seconds = float(os.getenv("RIJKS_SLEEP_SECONDS", "0.1"))
-    resume = os.getenv("RIJKS_RESUME", "1").strip() not in ("0", "false", "no")
-    return RijksConfig(
-        set_spec=set_spec,
-        max_pages=max_pages,
-        sleep_seconds=sleep_seconds,
-        resume=resume,
-    )
