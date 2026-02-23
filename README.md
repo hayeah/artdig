@@ -124,6 +124,32 @@ uv run pymake ingest       # ingest both sources (default)
 uv run pymake ingest_met   # Met only
 uv run pymake ingest_nga   # NGA only
 uv run pymake stats        # print summary statistics
+uv run pymake ingest_getty # Getty-only DB at output/getty.duckdb
+uv run pymake stats_getty  # stats for Getty-only DB
+uv run pymake ingest_getty_index   # build full Getty object URL index via SPARQL
+uv run pymake ingest_getty_pending # hydrate pending indexed objects (default 1000)
+```
+
+### Getty-only dump (bespoke DB)
+
+`ingest_getty` writes a dedicated DuckDB file at `output/getty.duckdb` with:
+
+- `getty_activity` — raw ActivityStream events
+- `getty_objects` — flattened object rows + raw JSON
+
+Control ingest scope using env vars:
+
+```sh
+GETTY_FROM_PAGE=1 GETTY_TO_PAGE=200 uv run pymake ingest_getty
+# or cap for a smoke run
+GETTY_MAX_PAGES=2 GETTY_MAX_OBJECTS=200 uv run pymake ingest_getty
+```
+
+SPARQL index + batch hydrate flow:
+
+```sh
+uv run pymake ingest_getty_index
+GETTY_PENDING_LIMIT=1000 uv run pymake ingest_getty_pending
 ```
 
 ## Project structure
