@@ -13,6 +13,18 @@ from artdig.common import now_utc
 
 OAI_ENDPOINT = "https://data.rijksmuseum.nl/oai"
 
+
+def _fmt_duration(seconds: float) -> str:
+    """Format seconds as human-readable duration."""
+    s = int(seconds)
+    if s < 60:
+        return f"{s}s"
+    m, s = divmod(s, 60)
+    if m < 60:
+        return f"{m}m{s:02d}s"
+    h, m = divmod(m, 60)
+    return f"{h}h{m:02d}m"
+
 # XML namespaces used in OAI-PMH / EDM responses
 NS = {
     "oai": "http://www.openarchives.org/OAI/2.0/",
@@ -369,6 +381,57 @@ class RijksIngester:
 
         print(f"Rijks: synced {count} sets")
 
+    def probe_set_sizes(self, sleep_seconds: float = 0.2):
+        """Probe each set with one ListRecords request to get completeListSize."""
+        rows = self.conn.execute(
+            "SELECT set_spec, set_name FROM rijks_sets ORDER BY set_spec"
+        ).fetchall()
+
+        for i, (spec, name) in enumerate(rows, start=1):
+            url = f"{OAI_ENDPOINT}?verb=ListRecords&metadataPrefix=edm&set={spec}"
+            try:
+                root = _fetch_xml(url)
+            except Exception as e:
+                print(f"Rijks: probe {spec} failed ({e})")
+                continue
+
+            error = root.find("oai:error", NS)
+            if error is not None:
+                # Set might be empty — store 0
+                self.conn.execute(
+                    "UPDATE rijks_sets SET record_count = 0 WHERE set_spec = ?",
+                    [spec],
+                )
+                continue
+
+            list_records = root.find("oai:ListRecords", NS)
+            if list_records is None:
+                continue
+
+            token_el = list_records.find("oai:resumptionToken", NS)
+            if token_el is not None:
+                size_str = token_el.get("completeListSize")
+                if size_str:
+                    self.conn.execute(
+                        "UPDATE rijks_sets SET record_count = ? WHERE set_spec = ?",
+                        [int(size_str), spec],
+                    )
+            else:
+                # No resumption token means single page — count records directly
+                n = len(list_records.findall("oai:record", NS))
+                self.conn.execute(
+                    "UPDATE rijks_sets SET record_count = ? WHERE set_spec = ?",
+                    [n, spec],
+                )
+
+            if i % 20 == 0:
+                print(f"Rijks: probed {i}/{len(rows)} sets")
+
+            if sleep_seconds > 0:
+                time.sleep(sleep_seconds)
+
+        print(f"Rijks: probed all {len(rows)} sets for sizes")
+
     def _state_key(self, set_spec: str | None) -> str:
         """Per-set resumption token key."""
         if set_spec:
@@ -397,7 +460,9 @@ class RijksIngester:
         pages = 0
         total_new = 0
         total_skipped = 0
-        complete_list_size = "?"
+        total_records_seen = 0
+        complete_list_size: int | None = None
+        t0 = time.monotonic()
 
         while url:
             if cfg.max_pages is not None and pages >= cfg.max_pages:
@@ -424,6 +489,8 @@ class RijksIngester:
                 if not identifier:
                     continue
 
+                total_records_seen += 1
+
                 # Always record set memberships
                 self._upsert_object_sets(identifier, set_specs)
 
@@ -447,20 +514,20 @@ class RijksIngester:
             if token_el is not None and token_el.text:
                 resumption_token = token_el.text.strip()
                 self._save_state(state_key, resumption_token)
-                complete_list_size = token_el.get("completeListSize", "?")
+                size_str = token_el.get("completeListSize")
+                if size_str:
+                    complete_list_size = int(size_str)
                 url = f"{OAI_ENDPOINT}?verb=ListRecords&resumptionToken={resumption_token}"
             else:
                 resumption_token = None
                 self._save_state(state_key, "")
                 url = None
 
-            if pages % 10 == 0 or url is None:
-                existing = self.conn.execute("SELECT count(*) FROM rijks_objects").fetchone()[0]
-                print(
-                    f"Rijks [{set_label}]: page {pages}, "
-                    f"+{page_new} new, ~{page_skipped} skipped, "
-                    f"{existing:,} total in db "
-                    f"(list size: {complete_list_size if resumption_token else 'done'})"
+            if pages % 5 == 0 or url is None:
+                self._print_progress(
+                    set_label, pages, total_new, total_skipped,
+                    total_records_seen, complete_list_size, t0,
+                    done=url is None,
                 )
 
             if url and cfg.sleep_seconds > 0:
@@ -470,14 +537,49 @@ class RijksIngester:
         if resumption_token is None:
             self._save_state(state_key, "")
 
+        elapsed = time.monotonic() - t0
         count = self.conn.execute("SELECT count(*) FROM rijks_objects").fetchone()[0]
         with_image = self.conn.execute(
             "SELECT count(*) FROM rijks_objects WHERE image_url IS NOT NULL"
         ).fetchone()[0]
         print(
-            f"Rijks [{set_label}]: done — {total_new} new, {total_skipped} skipped, "
+            f"Rijks [{set_label}]: done in {_fmt_duration(elapsed)} — "
+            f"{total_new:,} new, {total_skipped:,} skipped, "
             f"{count:,} total objects ({with_image:,} with images)"
         )
+
+    def _print_progress(
+        self,
+        set_label: str,
+        pages: int,
+        total_new: int,
+        total_skipped: int,
+        records_seen: int,
+        list_size: int | None,
+        t0: float,
+        *,
+        done: bool,
+    ):
+        elapsed = time.monotonic() - t0
+        rate = records_seen / elapsed if elapsed > 0 else 0
+
+        parts = [f"Rijks [{set_label}]: p{pages}"]
+        parts.append(f"+{total_new:,} new, ~{total_skipped:,} skip")
+
+        if list_size and list_size > 0:
+            pct = records_seen / list_size * 100
+            parts.append(f"{records_seen:,}/{list_size:,} ({pct:.0f}%)")
+        else:
+            parts.append(f"{records_seen:,} records")
+
+        parts.append(f"{rate:.1f} rec/s")
+        parts.append(f"{_fmt_duration(elapsed)}")
+
+        if not done and list_size and list_size > 0 and rate > 0:
+            remaining = (list_size - records_seen) / rate
+            parts.append(f"~{_fmt_duration(remaining)} left")
+
+        print("  ".join(parts))
 
     def reparse(self):
         """Re-parse all objects from stored raw_xml without re-downloading."""

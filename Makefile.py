@@ -123,6 +123,46 @@ def ingest_rijks(
 
 
 @task()
+def rijks_list_sets():
+    """List Rijksmuseum OAI-PMH sets with object counts (syncs from API first)."""
+    from artdig.common import open_db
+    from artdig.rijks.ingest import RijksIngester
+
+    conn = open_db(RIJKS_DATABASE)
+    try:
+        RijksIngester(conn).sync_sets()
+        rows = conn.execute("""
+            SELECT s.set_spec, s.set_name, s.record_count,
+                   count(os.identifier) AS n
+            FROM rijks_sets s
+            LEFT JOIN rijks_object_sets os ON s.set_spec = os.set_spec
+            GROUP BY s.set_spec, s.set_name, s.record_count
+            ORDER BY n DESC, s.set_spec
+        """).fetchall()
+        print(f"{'set':>10}  {'total':>7}  {'local':>6}  name")
+        print(f"{'---':>10}  {'-----':>7}  {'-----':>6}  ----")
+        for spec, name, record_count, n in rows:
+            total = f"{record_count:,}" if record_count else "?"
+            local = f"{n:,}" if n > 0 else "-"
+            print(f"{spec:>10}  {total:>7}  {local:>6}  {name}")
+    finally:
+        conn.close()
+
+
+@task()
+def rijks_probe_sizes(sleep_seconds: float = 0.2):
+    """Probe each Rijks set with one OAI-PMH request to get record counts."""
+    from artdig.common import open_db
+    from artdig.rijks.ingest import RijksIngester
+
+    conn = open_db(RIJKS_DATABASE)
+    try:
+        RijksIngester(conn).probe_set_sizes(sleep_seconds=sleep_seconds)
+    finally:
+        conn.close()
+
+
+@task()
 def reparse_rijks():
     """Re-parse all Rijks objects from stored raw XML (no network)."""
     from artdig.common import open_db
