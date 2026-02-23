@@ -18,6 +18,17 @@ RIJKS_DATABASE = OUTPUT_DIR / "rijks.duckdb"
 MET_CSV = Path("data/met/MetObjects.csv")
 NGA_OBJECTS = Path("data/nga/data/objects.csv")
 
+RIJKS_DATA_DIR = Path("data/rijks")
+RIJKS_LIDO_ZIP = RIJKS_DATA_DIR / "202001-rma-lido-collection.zip"
+
+_RIJKS_RELEASE = "https://github.com/Rijksmuseum/rijksmuseum.github.io/releases/download/1.0.0"
+_RIJKS_ZIPS = [
+    "202001-rma-lido-collection.zip",
+    "202001-rma-csv-collection.zip",
+    "202001-rma-dc-collection.zip",
+    "201911-rma-edm-actors.zip",
+]
+
 
 @task()
 def submodules():
@@ -92,6 +103,23 @@ def ingest_getty(
         GettyIngester(conn).run(cfg)
     finally:
         conn.close()
+
+
+@task(outputs=[RIJKS_LIDO_ZIP])
+def download_rijks():
+    """Download Rijksmuseum historical data dumps from GitHub."""
+    import urllib.request
+
+    RIJKS_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    for name in _RIJKS_ZIPS:
+        dest = RIJKS_DATA_DIR / name
+        if dest.exists():
+            print(f"  skip {name} (exists)")
+            continue
+        url = f"{_RIJKS_RELEASE}/{name}"
+        print(f"  downloading {name} ...")
+        urllib.request.urlretrieve(url, dest)
+        print(f"  saved {dest} ({dest.stat().st_size / 1e6:.0f} MB)")
 
 
 @task()

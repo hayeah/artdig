@@ -8,6 +8,10 @@ dist/
 # Output
 output/
 
+# Source data (downloaded via `pymake download_rijks`)
+data/rijks/
+data/getty/corpus/
+
 # Notes (symlink to Obsidian vault)
 .obnotes
 
