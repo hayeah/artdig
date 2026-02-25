@@ -15,6 +15,7 @@ NGA_DATABASE = OUTPUT_DIR / "nga.duckdb"
 GETTY_DATABASE = OUTPUT_DIR / "getty.duckdb"
 RIJKS_DATABASE = OUTPUT_DIR / "rijks.duckdb"
 ARTIC_DATABASE = OUTPUT_DIR / "artic.duckdb"
+NYPL_DATABASE = OUTPUT_DIR / "nypl.duckdb"
 
 MET_CSV = Path("data/met/MetObjects.csv")
 NGA_OBJECTS = Path("data/nga/data/objects.csv")
@@ -23,6 +24,7 @@ RIJKS_DATA_DIR = Path("data/rijks")
 RIJKS_LIDO_ZIP = RIJKS_DATA_DIR / "202001-rma-lido-collection.zip"
 
 ARTIC_DATA_DIR = Path("data/artic")
+NYPL_DATA_DIR = Path("data/nypl")
 ARTIC_DUMP_URL = "https://artic-api-data.s3.amazonaws.com/artic-api-data.tar.bz2"
 
 _RIJKS_RELEASE = "https://github.com/Rijksmuseum/rijksmuseum.github.io/releases/download/1.0.0"
@@ -374,6 +376,52 @@ def stats_getty():
         print(f"  with image: {rows[1]:,}")
         print(f"  with manifest: {rows[2]:,}")
         print(f"  metadata cc0: {rows[3]:,}")
+    finally:
+        conn.close()
+
+
+@task(inputs=[NYPL_DATA_DIR / "items"], touch=TOUCH_DIR / "ingest_nypl")
+def ingest_nypl():
+    """Ingest NYPL public-domain data dump into output/nypl.duckdb."""
+    TOUCH_DIR.mkdir(parents=True, exist_ok=True)
+    from artdig.common import open_db
+    from artdig.nypl.ingest import NYPLIngester
+
+    conn = open_db(NYPL_DATABASE)
+    try:
+        NYPLIngester(conn, NYPL_DATA_DIR).run()
+    finally:
+        conn.close()
+
+
+@task()
+def stats_nypl():
+    """Print basic stats for the NYPL database."""
+    from artdig.common import open_db
+
+    conn = open_db(NYPL_DATABASE)
+    try:
+        rows = conn.execute("""
+            SELECT
+                count(*) AS objects,
+                count(*) FILTER (WHERE image_url IS NOT NULL) AS with_image,
+                count(*) FILTER (WHERE artist_name IS NOT NULL) AS with_artist,
+                count(*) FILTER (WHERE date_start IS NOT NULL) AS with_date,
+                count(DISTINCT collection_uuid) AS collections
+            FROM nypl_objects
+        """).fetchone()
+        print("=== NYPL Public Domain Dataset ===")
+        print(f"  db: {NYPL_DATABASE}")
+        print(f"  objects: {rows[0]:,}")
+        print(f"  with image: {rows[1]:,}")
+        print(f"  with artist: {rows[2]:,}")
+        print(f"  with date: {rows[3]:,}")
+        print(f"  collections: {rows[4]:,}")
+
+        coll_count = conn.execute(
+            "SELECT count(*) FROM nypl_collections"
+        ).fetchone()[0]
+        print(f"  collection records: {coll_count:,}")
     finally:
         conn.close()
 
