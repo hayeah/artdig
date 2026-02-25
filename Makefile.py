@@ -14,12 +14,16 @@ MET_DATABASE = OUTPUT_DIR / "met.duckdb"
 NGA_DATABASE = OUTPUT_DIR / "nga.duckdb"
 GETTY_DATABASE = OUTPUT_DIR / "getty.duckdb"
 RIJKS_DATABASE = OUTPUT_DIR / "rijks.duckdb"
+ARTIC_DATABASE = OUTPUT_DIR / "artic.duckdb"
 
 MET_CSV = Path("data/met/MetObjects.csv")
 NGA_OBJECTS = Path("data/nga/data/objects.csv")
 
 RIJKS_DATA_DIR = Path("data/rijks")
 RIJKS_LIDO_ZIP = RIJKS_DATA_DIR / "202001-rma-lido-collection.zip"
+
+ARTIC_DATA_DIR = Path("data/artic")
+ARTIC_DUMP_URL = "https://artic-api-data.s3.amazonaws.com/artic-api-data.tar.bz2"
 
 _RIJKS_RELEASE = "https://github.com/Rijksmuseum/rijksmuseum.github.io/releases/download/1.0.0"
 _RIJKS_ZIPS = [
@@ -122,6 +126,27 @@ def download_rijks():
         print(f"  saved {dest} ({dest.stat().st_size / 1e6:.0f} MB)")
 
 
+@task(
+    inputs=[download_rijks, RIJKS_LIDO_ZIP],
+    touch=TOUCH_DIR / "ingest_rijks_lido",
+)
+def ingest_rijks_lido(batch_size: int = 5000):
+    """Ingest Rijksmuseum LIDO XML dump (~694k records) into output/rijks.duckdb.
+
+    Replaces rijks_objects table with LIDO-derived schema.
+    Preserves OAI-PMH tables (sets, harvest_state, object_sets).
+    """
+    TOUCH_DIR.mkdir(parents=True, exist_ok=True)
+    from artdig.common import open_db
+    from artdig.rijks.ingest import RijksIngester
+
+    conn = open_db(RIJKS_DATABASE)
+    try:
+        RijksIngester(conn).ingest_lido(RIJKS_LIDO_ZIP, batch_size=batch_size)
+    finally:
+        conn.close()
+
+
 @task()
 def ingest_rijks(
     set: str | None = None,
@@ -215,7 +240,8 @@ def stats_rijks():
                 count(*) AS objects,
                 count(*) FILTER (WHERE image_url IS NOT NULL) AS with_image,
                 count(*) FILTER (WHERE creator_name IS NOT NULL) AS with_creator,
-                count(*) FILTER (WHERE date_created IS NOT NULL) AS with_date
+                count(*) FILTER (WHERE earliest_year IS NOT NULL) AS with_date,
+                count(*) FILTER (WHERE height_cm IS NOT NULL) AS with_dimensions
             FROM rijks_objects
         """).fetchone()
         print("=== Rijksmuseum Dataset ===")
@@ -224,6 +250,7 @@ def stats_rijks():
         print(f"  with image: {rows[1]:,}")
         print(f"  with creator: {rows[2]:,}")
         print(f"  with date: {rows[3]:,}")
+        print(f"  with dimensions: {rows[4]:,}")
     finally:
         conn.close()
 
@@ -253,6 +280,69 @@ def ingest_getty_pending(
     conn = open_db(GETTY_DATABASE)
     try:
         GettyIngester(conn).hydrate_pending_objects(limit=limit, sleep_seconds=sleep_seconds)
+    finally:
+        conn.close()
+
+
+@task(outputs=[ARTIC_DATA_DIR / "artic-api-data.tar.bz2"])
+def download_artic():
+    """Download ARTIC data dump from S3."""
+    import tarfile
+    import urllib.request
+
+    ARTIC_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    archive = ARTIC_DATA_DIR / "artic-api-data.tar.bz2"
+    if archive.exists():
+        print(f"  skip download (exists: {archive})")
+    else:
+        print(f"  downloading {ARTIC_DUMP_URL} ...")
+        urllib.request.urlretrieve(ARTIC_DUMP_URL, archive)
+        print(f"  saved {archive} ({archive.stat().st_size / 1e6:.0f} MB)")
+    marker = ARTIC_DATA_DIR / "artic-api-data" / "getting-started" / "allArtworks.jsonl"
+    if not marker.exists():
+        print("  extracting archive ...")
+        with tarfile.open(archive, "r:bz2") as tf:
+            tf.extractall(ARTIC_DATA_DIR)
+        print("  extraction complete")
+
+
+@task(inputs=[download_artic], touch=TOUCH_DIR / "ingest_artic")
+def ingest_artic():
+    """Ingest ARTIC data dump into output/artic.duckdb."""
+    TOUCH_DIR.mkdir(parents=True, exist_ok=True)
+    from artdig.artic.ingest import ArticIngester
+    from artdig.common import open_db
+
+    conn = open_db(ARTIC_DATABASE)
+    try:
+        ArticIngester(conn, ARTIC_DATA_DIR).run()
+    finally:
+        conn.close()
+
+
+@task()
+def stats_artic():
+    """Print basic stats for the ARTIC database."""
+    from artdig.common import open_db
+
+    conn = open_db(ARTIC_DATABASE)
+    try:
+        rows = conn.execute("""
+            SELECT
+                count(*) AS objects,
+                count(*) FILTER (WHERE image_url IS NOT NULL) AS with_image,
+                count(*) FILTER (WHERE artist_name IS NOT NULL) AS with_artist,
+                count(*) FILTER (WHERE date_start IS NOT NULL) AS with_date,
+                count(*) FILTER (WHERE is_public_domain) AS public_domain
+            FROM artic_objects
+        """).fetchone()
+        print("=== Art Institute of Chicago Dataset ===")
+        print(f"  db: {ARTIC_DATABASE}")
+        print(f"  objects: {rows[0]:,}")
+        print(f"  with image: {rows[1]:,}")
+        print(f"  with artist: {rows[2]:,}")
+        print(f"  with date: {rows[3]:,}")
+        print(f"  public domain: {rows[4]:,}")
     finally:
         conn.close()
 

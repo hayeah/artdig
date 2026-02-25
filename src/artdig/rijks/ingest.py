@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import time
 import xml.etree.ElementTree as ET
+import zipfile
 from dataclasses import dataclass, field
+from pathlib import Path
 from urllib.request import Request, urlopen
 
 import duckdb
@@ -80,6 +83,54 @@ CREATE TABLE IF NOT EXISTS rijks_harvest_state (
     value               VARCHAR
 );
 """
+
+LIDO_SCHEMA_DDL = """
+DROP TABLE IF EXISTS rijks_objects;
+CREATE TABLE rijks_objects (
+    inventory_number     VARCHAR PRIMARY KEY,
+    lido_rec_id          VARCHAR,
+    oai_identifier       VARCHAR,
+
+    title_en             VARCHAR,
+    title_nl             VARCHAR,
+    description_en       VARCHAR,
+    description_nl       VARCHAR,
+
+    object_type_en       VARCHAR,
+    object_type_nl       VARCHAR,
+    object_type_aat_uri  VARCHAR,
+
+    creator_name         VARCHAR,
+    creator_role         VARCHAR,
+    creator_nationality  VARCHAR,
+    creator_qualifier    VARCHAR,
+    creator_birth_year   INTEGER,
+    creator_death_year   INTEGER,
+
+    earliest_year        INTEGER,
+    latest_year          INTEGER,
+
+    height_cm            FLOAT,
+    width_cm             FLOAT,
+    depth_cm             FLOAT,
+
+    materials            JSON,
+    techniques           JSON,
+    subjects             JSON,
+    inscriptions         JSON,
+    all_dimensions       JSON,
+
+    image_url            VARCHAR,
+    rights_url           VARCHAR,
+    credit_line          VARCHAR,
+    source_url           VARCHAR,
+
+    record_metadata_date VARCHAR,
+    ingested_at          TIMESTAMP
+);
+"""
+
+LIDO_TAG = "{http://www.lido-schema.org}lido"
 
 
 def _fetch_xml(url: str, timeout: float = 60.0) -> ET.Element:
@@ -580,6 +631,143 @@ class RijksIngester:
             parts.append(f"~{_fmt_duration(remaining)} left")
 
         print("  ".join(parts))
+
+    # --- LIDO bulk ingestion ---
+
+    def _ensure_lido_schema(self):
+        """Drop old rijks_objects and create LIDO-tailored schema."""
+        for stmt in LIDO_SCHEMA_DDL.strip().split(";"):
+            stmt = stmt.strip()
+            if stmt:
+                self.conn.execute(stmt)
+
+    def _record_to_row(self, rec) -> dict | None:
+        """Convert a LIDORecord to a flat dict for insertion. None if no inventory_number."""
+        inv = rec.inventory_number()
+        if inv is None:
+            return None
+
+        title_en, title_nl = rec.titles()
+        desc_en, desc_nl = rec.descriptions()
+        type_en, type_nl, type_aat = rec.object_type()
+        creator = rec.creator()
+        earliest, latest = rec.date_range()
+        h, w, d = rec.primary_dimensions_cm()
+
+        mats = rec.materials()
+        techs = rec.techniques()
+        subjs = rec.subjects()
+        inscs = rec.inscriptions()
+        dims = rec.all_dimensions()
+
+        return {
+            "inventory_number": inv,
+            "lido_rec_id": rec.lido_rec_id(),
+            "oai_identifier": rec.oai_identifier(),
+            "title_en": title_en,
+            "title_nl": title_nl,
+            "description_en": desc_en,
+            "description_nl": desc_nl,
+            "object_type_en": type_en,
+            "object_type_nl": type_nl,
+            "object_type_aat_uri": type_aat,
+            "creator_name": creator["name"],
+            "creator_role": creator["role"],
+            "creator_nationality": creator["nationality"],
+            "creator_qualifier": creator["qualifier"],
+            "creator_birth_year": creator["birth_year"],
+            "creator_death_year": creator["death_year"],
+            "earliest_year": earliest,
+            "latest_year": latest,
+            "height_cm": h,
+            "width_cm": w,
+            "depth_cm": d,
+            "materials": json.dumps(mats) if mats else None,
+            "techniques": json.dumps(techs) if techs else None,
+            "subjects": json.dumps(subjs) if subjs else None,
+            "inscriptions": json.dumps(inscs) if inscs else None,
+            "all_dimensions": json.dumps(dims) if dims else None,
+            "image_url": rec.image_url(),
+            "rights_url": rec.rights_url(),
+            "credit_line": rec.credit_line(),
+            "source_url": f"https://www.rijksmuseum.nl/nl/collectie/{inv}",
+            "record_metadata_date": rec.record_metadata_date(),
+            "ingested_at": now_utc(),
+        }
+
+    def _insert_lido_batch(self, batch: list[dict]):
+        """Batch-insert rows into rijks_objects."""
+        if not batch:
+            return
+        columns = list(batch[0].keys())
+        json_cols = {"materials", "techniques", "subjects", "inscriptions", "all_dimensions"}
+        placeholders = ", ".join(
+            "?::JSON" if c in json_cols else "?" for c in columns
+        )
+        cols_str = ", ".join(columns)
+        sql = f"INSERT OR REPLACE INTO rijks_objects ({cols_str}) VALUES ({placeholders})"
+        rows = [tuple(row[c] for c in columns) for row in batch]
+        self.conn.executemany(sql, rows)
+
+    def ingest_lido(self, zip_path: Path, *, batch_size: int = 5000):
+        """Stream-parse the LIDO zip and ingest all records.
+
+        Uses iterparse + elem.clear() for bounded memory on the 12 GB XML.
+        """
+        from artdig.rijks.lido import LIDORecord
+
+        self._ensure_lido_schema()
+
+        t0 = time.monotonic()
+        total = 0
+        skipped = 0
+        batch: list[dict] = []
+
+        with zipfile.ZipFile(zip_path) as zf:
+            xml_names = [n for n in zf.namelist() if n.endswith(".xml")]
+            if not xml_names:
+                raise RuntimeError(f"No XML file found in {zip_path}")
+
+            with zf.open(xml_names[0]) as xml_file:
+                for event, elem in ET.iterparse(xml_file, events=("end",)):
+                    if elem.tag != LIDO_TAG:
+                        continue
+
+                    rec = LIDORecord(elem)
+                    row = self._record_to_row(rec)
+                    elem.clear()
+
+                    if row is None:
+                        skipped += 1
+                        continue
+
+                    batch.append(row)
+                    total += 1
+
+                    if len(batch) >= batch_size:
+                        self._insert_lido_batch(batch)
+                        batch.clear()
+
+                        if total % 50_000 == 0:
+                            elapsed = time.monotonic() - t0
+                            rate = total / elapsed if elapsed > 0 else 0
+                            print(
+                                f"Rijks LIDO: {total:,} records "
+                                f"({rate:.0f} rec/s, {_fmt_duration(elapsed)})"
+                            )
+
+        # Flush remaining
+        self._insert_lido_batch(batch)
+
+        elapsed = time.monotonic() - t0
+        count = self.conn.execute("SELECT count(*) FROM rijks_objects").fetchone()[0]
+        with_image = self.conn.execute(
+            "SELECT count(*) FROM rijks_objects WHERE image_url IS NOT NULL"
+        ).fetchone()[0]
+        print(
+            f"Rijks LIDO: done in {_fmt_duration(elapsed)} — "
+            f"{count:,} objects ({with_image:,} with images, {skipped:,} skipped)"
+        )
 
     def reparse(self):
         """Re-parse all objects from stored raw_xml without re-downloading."""

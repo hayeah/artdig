@@ -48,9 +48,24 @@ src/artdig/
     getty/ingest.py     # → output/getty.duckdb (getty_objects, getty_activity, getty_object_index)
     getty/linked_art.py # Getty JSON-LD → flat GettyObject converter
     rijks/ingest.py     # → output/rijks.duckdb (rijks_objects, rijks_sets, etc.)
+    artic/ingest.py     # → output/artic.duckdb (artic_objects)
 ```
 
 Each museum has its own DuckDB file with a bespoke schema. Common columns across museums: `title`, `object_type`, `artist_name`, `date_display`, `date_start`, `date_end`, `medium`, `classification`, `image_url`, `source_url`, plus a JSON `extra` column for everything else.
+
+## Art Institute of Chicago (ARTIC)
+
+Data comes from the official ARTIC API data dump (~115 MB compressed, ~2.5 GB extracted):
+- Download: `https://artic-api-data.s3.amazonaws.com/artic-api-data.tar.bz2`
+- Format: Individual JSON files at `data/artic/artic-api-data/json/artworks/{id}.json`
+- IIIF images: `https://www.artic.edu/iiif/2/{image_id}/full/843,/0/default.jpg`
+- Source URLs: `https://www.artic.edu/artworks/{id}`
+
+```bash
+uv run pymake download_artic   # download & extract data dump
+uv run pymake ingest_artic     # ingest into output/artic.duckdb (artic_objects)
+uv run pymake stats_artic      # print dataset summary
+```
 
 ## Rijksmuseum Harvesting
 
