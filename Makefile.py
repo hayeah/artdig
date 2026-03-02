@@ -16,6 +16,9 @@ GETTY_DATABASE = OUTPUT_DIR / "getty.duckdb"
 RIJKS_DATABASE = OUTPUT_DIR / "rijks.duckdb"
 ARTIC_DATABASE = OUTPUT_DIR / "artic.duckdb"
 NYPL_DATABASE = OUTPUT_DIR / "nypl.duckdb"
+MOMA_DATABASE = OUTPUT_DIR / "moma.duckdb"
+TATE_DATABASE = OUTPUT_DIR / "tate.duckdb"
+COOPERHEWITT_DATABASE = OUTPUT_DIR / "cooperhewitt.duckdb"
 
 MET_CSV = Path("data/met/MetObjects.csv")
 NGA_OBJECTS = Path("data/nga/data/objects.csv")
@@ -26,6 +29,11 @@ RIJKS_LIDO_ZIP = RIJKS_DATA_DIR / "202001-rma-lido-collection.zip"
 ARTIC_DATA_DIR = Path("data/artic")
 NYPL_DATA_DIR = Path("data/nypl")
 ARTIC_DUMP_URL = "https://artic-api-data.s3.amazonaws.com/artic-api-data.tar.bz2"
+
+MOMA_CSV = Path.home() / "github.com/MuseumofModernArt/collection/Artworks.csv"
+TATE_ARTWORKS_CSV = Path.home() / "github.com/tategallery/collection/artwork_data.csv"
+TATE_ARTISTS_CSV = Path.home() / "github.com/tategallery/collection/artist_data.csv"
+COOPERHEWITT_META_DIR = Path.home() / "github.com/cooperhewitt/collection/meta"
 
 _RIJKS_RELEASE = "https://github.com/Rijksmuseum/rijksmuseum.github.io/releases/download/1.0.0"
 _RIJKS_ZIPS = [
@@ -422,6 +430,134 @@ def stats_nypl():
             "SELECT count(*) FROM nypl_collections"
         ).fetchone()[0]
         print(f"  collection records: {coll_count:,}")
+    finally:
+        conn.close()
+
+
+@task(inputs=[MOMA_CSV], touch=TOUCH_DIR / "ingest_moma")
+def ingest_moma():
+    """Ingest MoMA collection CSV into output/moma.duckdb."""
+    TOUCH_DIR.mkdir(parents=True, exist_ok=True)
+    from artdig.common import open_db
+    from artdig.moma.ingest import MoMAIngester
+
+    conn = open_db(MOMA_DATABASE)
+    try:
+        MoMAIngester(conn, MOMA_CSV).run()
+    finally:
+        conn.close()
+
+
+@task()
+def stats_moma():
+    """Print basic stats for the MoMA database."""
+    from artdig.common import open_db
+
+    conn = open_db(MOMA_DATABASE)
+    try:
+        rows = conn.execute("""
+            SELECT
+                count(*) AS objects,
+                count(*) FILTER (WHERE image_url IS NOT NULL) AS with_image,
+                count(*) FILTER (WHERE artist_name IS NOT NULL) AS with_artist,
+                count(*) FILTER (WHERE date_display IS NOT NULL) AS with_date,
+                count(*) FILTER (WHERE classification IS NOT NULL) AS with_classification
+            FROM moma_objects
+        """).fetchone()
+        print("=== MoMA Dataset ===")
+        print(f"  db: {MOMA_DATABASE}")
+        print(f"  objects: {rows[0]:,}")
+        print(f"  with image: {rows[1]:,}")
+        print(f"  with artist: {rows[2]:,}")
+        print(f"  with date: {rows[3]:,}")
+        print(f"  with classification: {rows[4]:,}")
+    finally:
+        conn.close()
+
+
+@task(inputs=[TATE_ARTWORKS_CSV, TATE_ARTISTS_CSV], touch=TOUCH_DIR / "ingest_tate")
+def ingest_tate():
+    """Ingest Tate collection CSVs into output/tate.duckdb."""
+    TOUCH_DIR.mkdir(parents=True, exist_ok=True)
+    from artdig.common import open_db
+    from artdig.tate.ingest import TateIngester
+
+    conn = open_db(TATE_DATABASE)
+    try:
+        TateIngester(conn, TATE_ARTWORKS_CSV, TATE_ARTISTS_CSV).run()
+    finally:
+        conn.close()
+
+
+@task()
+def stats_tate():
+    """Print basic stats for the Tate database."""
+    from artdig.common import open_db
+
+    conn = open_db(TATE_DATABASE)
+    try:
+        rows = conn.execute("""
+            SELECT
+                count(*) AS objects,
+                count(*) FILTER (WHERE image_url IS NOT NULL) AS with_image,
+                count(*) FILTER (WHERE artist_name IS NOT NULL) AS with_artist,
+                count(*) FILTER (WHERE date_start IS NOT NULL) AS with_date,
+                count(*) FILTER (WHERE is_public_domain) AS public_domain
+            FROM tate_objects
+        """).fetchone()
+        print("=== Tate Dataset ===")
+        print(f"  db: {TATE_DATABASE}")
+        print(f"  objects: {rows[0]:,}")
+        print(f"  with image: {rows[1]:,}")
+        print(f"  with artist: {rows[2]:,}")
+        print(f"  with date: {rows[3]:,}")
+        print(f"  public domain: {rows[4]:,}")
+
+        artist_count = conn.execute(
+            "SELECT count(*) FROM tate_artists"
+        ).fetchone()[0]
+        print(f"  artist records: {artist_count:,}")
+    finally:
+        conn.close()
+
+
+@task(inputs=[COOPERHEWITT_META_DIR / "objects.csv"], touch=TOUCH_DIR / "ingest_cooperhewitt")
+def ingest_cooperhewitt():
+    """Ingest Cooper Hewitt CSVs into output/cooperhewitt.duckdb."""
+    TOUCH_DIR.mkdir(parents=True, exist_ok=True)
+    from artdig.common import open_db
+    from artdig.cooperhewitt.ingest import CooperHewittIngester
+
+    conn = open_db(COOPERHEWITT_DATABASE)
+    try:
+        CooperHewittIngester(conn, COOPERHEWITT_META_DIR).run()
+    finally:
+        conn.close()
+
+
+@task()
+def stats_cooperhewitt():
+    """Print basic stats for the Cooper Hewitt database."""
+    from artdig.common import open_db
+
+    conn = open_db(COOPERHEWITT_DATABASE)
+    try:
+        rows = conn.execute("""
+            SELECT
+                count(*) AS objects,
+                count(*) FILTER (WHERE image_url IS NOT NULL) AS with_image,
+                count(*) FILTER (WHERE artist_name IS NOT NULL) AS with_artist,
+                count(*) FILTER (WHERE date_start IS NOT NULL) AS with_date,
+                count(*) FILTER (WHERE object_type IS NOT NULL) AS with_type
+            FROM cooperhewitt_objects
+        """).fetchone()
+        print("=== Cooper Hewitt Dataset ===")
+        print(f"  db: {COOPERHEWITT_DATABASE}")
+        print(f"  objects: {rows[0]:,}")
+        print(f"  with image: {rows[1]:,}")
+        print(f"  with artist: {rows[2]:,}")
+        print(f"  with date: {rows[3]:,}")
+        print(f"  with type: {rows[4]:,}")
     finally:
         conn.close()
 

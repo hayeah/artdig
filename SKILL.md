@@ -2,7 +2,7 @@
 
 Query art collection databases from major museums using DuckDB. All databases are read-only analytical stores in `output/`.
 
-Total: ~1.6M unique objects across 7 databases.
+Total: ~2.0M unique objects across 10 databases.
 
 ## How to Query
 
@@ -36,22 +36,25 @@ Always open connections with `read_only=True`.
 | Rijksmuseum | `rijks.duckdb` | `rijks_objects` | 667,894 | `inventory_number` (VARCHAR) |
 | Getty Museum | `getty.duckdb` | `getty_objects` | 989 | `object_url` (VARCHAR) |
 | NYPL Public Domain | `nypl.duckdb` | `nypl_objects` | 190,494 | `uuid` (VARCHAR) |
+| MoMA | `moma.duckdb` | `moma_objects` | 160,214 | `object_id` (INTEGER) |
+| Tate | `tate.duckdb` | `tate_objects` | 69,201 | `id` (INTEGER) |
+| Cooper Hewitt | `cooperhewitt.duckdb` | `cooperhewitt_objects` | 194,316 | `id` (INTEGER) |
 
 ## Column Name Mapping
 
 Column names vary across databases. Use this reference:
 
-| Concept | Unified | Met | NGA | ARTIC | Rijks | Getty | NYPL |
-|---|---|---|---|---|---|---|---|
-| Title | `title` | `title` | `title` | `title` | `title_en` / `title_nl` | `title` | `title` |
-| Artist | `artist_name` | `artist_name` | `artist_name` | `artist_name` | `creator_name` | `makers` | `artist_name` |
-| Type | `classification` | `classification` | `classification` | `classification` | `object_type_en` | `classification` | `object_type` |
-| Year start | `date_start` | `date_start` | `date_start` | `date_start` | `earliest_year` | `date_begin` | `date_start` |
-| Year end | `date_end` | `date_end` | `date_end` | `date_end` | `latest_year` | `date_end` | `date_end` |
-| Display date | `date_display` | `date_display` | `date_display` | `date_display` | — | `date_display` | `date_display` |
-| Public domain | `is_public_domain` | `is_public_domain` | `is_public_domain` | `is_public_domain` | — | `is_metadata_cc0` | `is_public_domain` |
-| Source link | `source_url` | `source_url` | `source_url` | `source_url` | `source_url` | `source_url` | `source_url` |
-| Image | `image_url` | `image_url` | `image_url` | `image_url` | `image_url` | `image_url` | `image_url` |
+| Concept | Unified | Met | NGA | ARTIC | Rijks | Getty | NYPL | MoMA | Tate | Cooper Hewitt |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Title | `title` | `title` | `title` | `title` | `title_en` / `title_nl` | `title` | `title` | `title` | `title` | `title` |
+| Artist | `artist_name` | `artist_name` | `artist_name` | `artist_name` | `creator_name` | `makers` | `artist_name` | `artist_name` | `artist_name` | `artist_name` |
+| Type | `classification` | `classification` | `classification` | `classification` | `object_type_en` | `classification` | `object_type` | `classification` | — | `object_type` |
+| Year start | `date_start` | `date_start` | `date_start` | `date_start` | `earliest_year` | `date_begin` | `date_start` | — | `date_start` | `date_start` (sparse) |
+| Year end | `date_end` | `date_end` | `date_end` | `date_end` | `latest_year` | `date_end` | `date_end` | — | — | `date_end` (sparse) |
+| Display date | `date_display` | `date_display` | `date_display` | `date_display` | — | `date_display` | `date_display` | `date_display` | `date_display` | `date_display` |
+| Public domain | `is_public_domain` | `is_public_domain` | `is_public_domain` | `is_public_domain` | — | `is_metadata_cc0` | `is_public_domain` | `is_public_domain` | `is_public_domain` | `is_public_domain` |
+| Source link | `source_url` | `source_url` | `source_url` | `source_url` | `source_url` | `source_url` | `source_url` | `source_url` | `source_url` | `source_url` |
+| Image | `image_url` | `image_url` | `image_url` | `image_url` | `image_url` | `image_url` | `image_url` | `image_url` | `image_url` | `image_url` |
 
 ## Schemas
 
@@ -153,6 +156,50 @@ extra (JSON)
 Additional table:
 - `nypl_collections` (932 rows): `uuid`, `database_id`, `title`, `num_items`, `source_url`, `extra`
 
+### MoMA — `moma.duckdb` → `moma_objects`
+
+Modern and contemporary art. All CC0 metadata. `artist_bio` has formatted bio (e.g. "(American, 1930–1992)").
+
+```
+object_id, title, artist_name, artist_bio, artist_nationality,
+artist_birth_year, artist_death_year, artist_gender,
+date_display, date_acquired, medium, dimensions, classification,
+department, credit_line, accession_number,
+image_url, source_url, is_public_domain,
+extra (JSON) — has constituent_id, height_cm, width_cm, depth_cm, duration_sec, etc.
+```
+
+### Tate — `tate.duckdb` → `tate_objects`
+
+British art from 1500s to present + international modern/contemporary. `is_public_domain` is true when no thumbnail copyright is set. Dimensions in mm.
+
+```
+id, accession_number, title, artist_name, artist_role, artist_id,
+date_display, date_start, medium, dimensions,
+width_mm, height_mm, depth_mm,
+credit_line, year_acquired,
+image_url, source_url, is_public_domain,
+extra (JSON) — has thumbnail_copyright, inscription, units
+```
+
+Additional table:
+- `tate_artists` (3,532 rows): `id`, `name`, `gender`, `dates`, `birth_year`, `death_year`, `place_of_birth`, `place_of_death`, `source_url`
+
+Join: `tate_objects.artist_id = tate_artists.id`
+
+### Cooper Hewitt — `cooperhewitt.duckdb` → `cooperhewitt_objects`
+
+Design-focused (textiles, furniture, posters, wallpaper, jewelry). `date_start`/`date_end` are sparse — use `date_display` or `decade` instead. Artist derived from participants CSV (prioritizes Artist > Designer > Creator roles).
+
+```
+id, title, artist_name, artist_role, object_type,
+date_display, date_start (sparse), date_end (sparse), decade,
+medium, dimensions, classification,
+department_id, credit_line, accession_number,
+image_url, source_url, is_public_domain, country,
+extra (JSON) — has description, gallery_text, label_text, inscribed, provenance, period_id, type_id, etc.
+```
+
 ## Query Patterns
 
 ### Start broad, then narrow
@@ -188,6 +235,11 @@ SELECT * FROM getty_objects WHERE LOWER(makers) LIKE '%van gogh%';
 -- ARTIC (artist_name has bio text; use extra for clean name)
 SELECT * FROM artic_objects
 WHERE LOWER(json_extract_string(extra, '$.artist_title')) = 'claude monet';
+
+-- MoMA / Tate / Cooper Hewitt
+SELECT * FROM moma_objects WHERE artist_name ILIKE '%picasso%';
+SELECT * FROM tate_objects WHERE artist_name ILIKE '%hockney%';
+SELECT * FROM cooperhewitt_objects WHERE artist_name ILIKE '%eames%';
 ```
 
 ### Use ILIKE for fuzzy matching
@@ -273,16 +325,51 @@ When researching an art topic:
 - Include `source_url` for every referenced work
 - Save guides to Obsidian: `~/Library/Mobile Documents/iCloud~md~obsidian/Documents/github.com/hayeah/artdig/`
 
+### Tate by artist with details
+
+```sql
+SELECT o.title, o.date_display, a.dates, a.place_of_birth, o.source_url
+FROM tate_objects o
+JOIN tate_artists a ON o.artist_id = a.id
+WHERE a.name ILIKE '%turner%'
+ORDER BY o.date_start;
+```
+
+### Cooper Hewitt by design type
+
+```sql
+SELECT object_type, count(*) c FROM cooperhewitt_objects
+GROUP BY object_type ORDER BY c DESC LIMIT 20;
+
+SELECT title, artist_name, date_display, source_url
+FROM cooperhewitt_objects WHERE object_type ILIKE '%poster%';
+```
+
+### MoMA by department/classification
+
+```sql
+SELECT department, count(*) c FROM moma_objects
+GROUP BY department ORDER BY c DESC;
+
+SELECT classification, count(*) c FROM moma_objects
+GROUP BY classification ORDER BY c DESC;
+```
+
 ## Pipeline Management
 
 ```sh
 cd ~/github.com/hayeah/artdig
-uv run pymake ingest        # unified (Met + NGA)
+uv run pymake ingest            # unified (Met + NGA)
 uv run pymake ingest_met
 uv run pymake ingest_nga
 uv run pymake ingest_artic
 uv run pymake ingest_rijks
 uv run pymake ingest_getty
 uv run pymake ingest_nypl
-uv run pymake stats          # print summary statistics
+uv run pymake ingest_moma
+uv run pymake ingest_tate
+uv run pymake ingest_cooperhewitt
+uv run pymake stats_moma
+uv run pymake stats_tate
+uv run pymake stats_cooperhewitt
 ```
