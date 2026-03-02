@@ -1,216 +1,288 @@
-# artdig — Agent Skill Guide
+# artdig — Museum Art Collection Databases
 
-You have access to **artdig**, a DuckDB database of ~629,000 public domain artworks from the Metropolitan Museum of Art (~485k) and the National Gallery of Art (~144k). Use it to find representative art for any topic — artists, movements, cultures, time periods, media, or subjects.
+Query art collection databases from major museums using DuckDB. All databases are read-only analytical stores in `output/`.
+
+Total: ~1.6M unique objects across 7 databases.
 
 ## How to Query
 
-Run SQL against the DuckDB file from the project root:
-
 ```sh
 cd ~/github.com/hayeah/artdig
-duckdb output/artdig.duckdb "SELECT ... FROM artworks ..."
-```
-
-Or via Python (use `uv run` from the project root):
-
-```sh
-cd ~/github.com/hayeah/artdig && uv run python << 'PYEOF'
+uv run python << 'PYEOF'
 import duckdb
-con = duckdb.connect('output/artdig.duckdb', read_only=True)
+con = duckdb.connect('output/<db_file>', read_only=True)
 for row in con.execute("SELECT ...").fetchall():
     print(row)
+con.close()
 PYEOF
 ```
 
-Always open the database with `read_only=True` for queries.
+Or use the `duckdb` CLI directly:
 
-## Schema
+```sh
+duckdb output/artdig.duckdb "SELECT ... FROM artworks ..."
+```
 
-Single table `artworks` with composite PK `(source, source_id)`:
+Always open connections with `read_only=True`.
 
-| Column | Type | Notes |
-|---|---|---|
-| source | VARCHAR | `'met'` or `'nga'` |
-| source_id | VARCHAR | Object ID from source |
-| title | VARCHAR | |
-| artist_name | VARCHAR | |
-| artist_nationality | VARCHAR | |
-| artist_birth_year | INTEGER | |
-| artist_death_year | INTEGER | |
-| date_display | VARCHAR | Human-readable date string (e.g. "c. 1660") |
-| date_start | INTEGER | Earliest year (use for date range filtering) |
-| date_end | INTEGER | Latest year |
-| medium | VARCHAR | |
-| dimensions | VARCHAR | |
-| classification | VARCHAR | e.g. "Painting", "Prints", "Photograph", "Drawing" |
-| culture | VARCHAR | e.g. "French", "Japanese", "Greek, Attic" |
-| period | VARCHAR | e.g. "Edo period (1615–1868)", "Impressionist" |
-| department | VARCHAR | |
-| country | VARCHAR | (Met only) |
-| city | VARCHAR | (Met only) |
-| region | VARCHAR | (Met only) |
-| is_public_domain | BOOLEAN | |
-| credit_line | VARCHAR | |
-| image_url | VARCHAR | NGA: direct IIIF URL; Met: API object URL |
-| thumbnail_url | VARCHAR | NGA only |
-| source_url | VARCHAR | Link to museum website |
-| wikidata_id | VARCHAR | e.g. "Q12418" |
-| extras | JSON | Source-specific overflow fields |
+## Databases Overview
+
+| Database | File | Table | Rows | Primary Key |
+|---|---|---|---|---|
+| Unified (Met+NGA) | `artdig.duckdb` | `artworks` | 628,996 | `source` + `source_id` |
+| Met Museum | `met.duckdb` | `met_objects` | 484,956 | `object_id` (INTEGER) |
+| National Gallery of Art | `nga.duckdb` | `nga_objects` | 144,040 | `objectid` (VARCHAR) |
+| Art Institute of Chicago | `artic.duckdb` | `artic_objects` | 134,078 | `id` (INTEGER) |
+| Rijksmuseum | `rijks.duckdb` | `rijks_objects` | 667,894 | `inventory_number` (VARCHAR) |
+| Getty Museum | `getty.duckdb` | `getty_objects` | 989 | `object_url` (VARCHAR) |
+| NYPL Public Domain | `nypl.duckdb` | `nypl_objects` | 190,494 | `uuid` (VARCHAR) |
+
+## Column Name Mapping
+
+Column names vary across databases. Use this reference:
+
+| Concept | Unified | Met | NGA | ARTIC | Rijks | Getty | NYPL |
+|---|---|---|---|---|---|---|---|
+| Title | `title` | `title` | `title` | `title` | `title_en` / `title_nl` | `title` | `title` |
+| Artist | `artist_name` | `artist_name` | `artist_name` | `artist_name` | `creator_name` | `makers` | `artist_name` |
+| Type | `classification` | `classification` | `classification` | `classification` | `object_type_en` | `classification` | `object_type` |
+| Year start | `date_start` | `date_start` | `date_start` | `date_start` | `earliest_year` | `date_begin` | `date_start` |
+| Year end | `date_end` | `date_end` | `date_end` | `date_end` | `latest_year` | `date_end` | `date_end` |
+| Display date | `date_display` | `date_display` | `date_display` | `date_display` | — | `date_display` | `date_display` |
+| Public domain | `is_public_domain` | `is_public_domain` | `is_public_domain` | `is_public_domain` | — | `is_metadata_cc0` | `is_public_domain` |
+| Source link | `source_url` | `source_url` | `source_url` | `source_url` | `source_url` | `source_url` | `source_url` |
+| Image | `image_url` | `image_url` | `image_url` | `image_url` | `image_url` | `image_url` | `image_url` |
+
+## Schemas
+
+### Unified Catalog — `artdig.duckdb` → `artworks`
+
+Cross-museum search across Met + NGA. Composite PK: `(source, source_id)`.
+
+```
+source, source_id, title, artist_name, artist_nationality,
+artist_birth_year, artist_death_year, date_display, date_start, date_end,
+medium, dimensions, classification, culture, period, department,
+country, city, region,  -- Met only
+is_public_domain, credit_line, image_url, thumbnail_url, source_url,
+wikidata_id, extras (JSON)
+```
+
+### Met — `met.duckdb` → `met_objects`
+
+```
+object_id, title, object_type, artist_name, date_display, date_start, date_end,
+medium, dimensions, classification, image_url, source_url, is_public_domain,
+department, culture, period, country, city,
+artist_nationality, artist_begin_date (VARCHAR), artist_end_date (VARCHAR),
+wikidata_id, extra (JSON)
+```
+
+### NGA — `nga.duckdb` → `nga_objects`
+
+```
+objectid, title, object_type, artist_name, date_display, date_start, date_end,
+medium, dimensions, classification, image_url (IIIF), source_url, is_public_domain,
+department, culture, period, artist_nationality,
+artist_birth_year, artist_death_year, thumbnail_url, credit_line,
+wikidata_id, extra (JSON)
+```
+
+### ARTIC — `artic.duckdb` → `artic_objects`
+
+`artist_name` includes biography (e.g. "Monet (French, 1840–1926)"). Use `json_extract_string(extra, '$.artist_title')` for the clean name.
+
+```
+id, title, object_type, artist_name, date_display, date_start, date_end,
+medium, dimensions, classification, image_url (IIIF), source_url, is_public_domain,
+department, place_of_origin, credit_line, accession_number,
+extra (JSON) — has artist_title, style_titles, subject_titles, term_titles, etc.
+```
+
+### Rijksmuseum — `rijks.duckdb` → `rijks_objects`
+
+Bilingual (English/Dutch). Physical dimensions in cm.
+
+```
+inventory_number, lido_rec_id, oai_identifier,
+title_en, title_nl, description_en, description_nl,
+object_type_en, object_type_nl, object_type_aat_uri,
+creator_name, creator_role, creator_nationality, creator_qualifier,
+creator_birth_year, creator_death_year,
+earliest_year, latest_year,
+height_cm, width_cm, depth_cm,
+materials (JSON), techniques (JSON), subjects (JSON),
+inscriptions (JSON), all_dimensions (JSON),
+image_url, rights_url, credit_line, source_url,
+record_metadata_date, ingested_at
+```
+
+Additional tables:
+- `rijks_sets` (192 rows): `set_spec`, `set_name`, `record_count`
+- `rijks_object_sets` (12,459 rows): `identifier`, `set_spec` — junction table linking objects to sets via `oai_identifier`
+
+### Getty — `getty.duckdb` → `getty_objects`
+
+Partial ingest (989 objects). Raw Linked Art JSON in `raw` column.
+
+```
+object_url, object_uuid, object_type, label, title,
+accession_number, classification, makers, date_display,
+date_begin, date_end, materials, source_url,
+iiif_manifest_url, image_url, is_metadata_cc0, fetched_at, raw (JSON)
+```
+
+Additional tables:
+- `getty_activity` (18,292 rows): ActivityStream update log
+- `getty_object_index` (168,392 rows): full object URL index with fetch status
+
+### NYPL — `nypl.duckdb` → `nypl_objects`
+
+All public domain. Hierarchical collection structure.
+
+```
+uuid, database_id, title, object_type, artist_name,
+date_display, date_start, date_end, medium, dimensions, classification,
+image_url, source_url, is_public_domain,
+collection_uuid, collection_title,
+container_uuid, container_title, parent_hierarchy,
+num_captures, accession_number, call_number, bnumber,
+extra (JSON)
+```
+
+Additional table:
+- `nypl_collections` (932 rows): `uuid`, `database_id`, `title`, `num_items`, `source_url`, `extra`
 
 ## Query Patterns
 
 ### Start broad, then narrow
 
-When exploring a topic, start with aggregate queries to understand what data exists, then drill into specific works.
+```sql
+-- Step 1: How much exists?
+SELECT count(*) FROM met_objects WHERE artist_name ILIKE '%monet%';
+
+-- Step 2: What types?
+SELECT classification, count(*) c FROM met_objects
+WHERE artist_name ILIKE '%monet%' GROUP BY classification ORDER BY c DESC;
+
+-- Step 3: Specific works
+SELECT title, date_display, source_url, image_url FROM met_objects
+WHERE artist_name ILIKE '%monet%' AND classification ILIKE '%painting%'
+ORDER BY date_start;
+```
+
+### Search by artist across databases
+
+Each DB has different artist column names. Query each separately:
 
 ```sql
--- Step 1: How much Dutch art is there?
-SELECT count(*) FROM artworks
-WHERE artist_nationality ILIKE '%dutch%' OR culture ILIKE '%dutch%';
+-- Met / NGA / NYPL
+SELECT * FROM met_objects WHERE LOWER(artist_name) LIKE '%monet%';
 
--- Step 2: What classifications?
-SELECT classification, count(*) AS cnt FROM artworks
-WHERE artist_nationality ILIKE '%dutch%'
-GROUP BY classification ORDER BY cnt DESC LIMIT 10;
+-- Rijks
+SELECT * FROM rijks_objects WHERE LOWER(creator_name) LIKE '%rembrandt%';
 
--- Step 3: Who are the top artists in paintings?
-SELECT artist_name, count(*) AS cnt FROM artworks
-WHERE artist_nationality ILIKE '%dutch%'
-  AND classification ILIKE '%painting%'
-  AND date_start BETWEEN 1580 AND 1700
-GROUP BY artist_name ORDER BY cnt DESC LIMIT 15;
+-- Getty
+SELECT * FROM getty_objects WHERE LOWER(makers) LIKE '%van gogh%';
 
--- Step 4: Find specific works
-SELECT title, artist_name, date_display, source, source_url, image_url
-FROM artworks
-WHERE artist_name ILIKE '%Vermeer%'
-  AND classification ILIKE '%painting%'
-ORDER BY date_start;
+-- ARTIC (artist_name has bio text; use extra for clean name)
+SELECT * FROM artic_objects
+WHERE LOWER(json_extract_string(extra, '$.artist_title')) = 'claude monet';
 ```
 
 ### Use ILIKE for fuzzy matching
 
-Column values are inconsistent across sources. Always use `ILIKE '%term%'` instead of exact matches:
+Values are inconsistent across sources — always use `ILIKE '%term%'`:
 
 ```sql
 -- Good: catches "Painting", "Paintings", "painting"
 WHERE classification ILIKE '%painting%'
 
--- Bad: misses "Paintings" (Met) vs "Painting" (NGA)
+-- Bad: misses variants
 WHERE classification = 'Painting'
 ```
 
 ### Filter by date range
 
-Use `date_start` and `date_end` (integer years) for temporal queries:
-
 ```sql
 -- Renaissance works (1400-1600)
-WHERE date_start BETWEEN 1400 AND 1600
+WHERE date_start >= 1400 AND date_end <= 1600
 
--- Works from a specific century
-WHERE date_start >= 1800 AND date_start < 1900
+-- Rijks uses different column names
+WHERE earliest_year >= 1400 AND latest_year <= 1600
 ```
 
-### Search across multiple fields
-
-Art topics span multiple columns. Combine `culture`, `period`, `artist_nationality`, `classification`, and `title`:
+### Public domain images only
 
 ```sql
--- Japanese woodblock prints
-WHERE (culture ILIKE '%japan%' OR artist_nationality ILIKE '%japanese%')
-  AND classification ILIKE '%print%'
-
--- Landscape paintings (by title keyword)
-WHERE title ILIKE '%landscape%'
-  AND classification ILIKE '%painting%'
+SELECT * FROM met_objects WHERE is_public_domain = true AND image_url IS NOT NULL;
+SELECT * FROM nypl_objects WHERE image_url IS NOT NULL;  -- all public domain
 ```
 
-### Get works with images
-
-NGA works have direct IIIF image links. Prefer these when you need viewable images:
+### Rijks collections by set
 
 ```sql
--- NGA works with direct high-res images
-SELECT title, artist_name, source_url, image_url
-FROM artworks
-WHERE source = 'nga'
-  AND image_url IS NOT NULL
-  AND classification ILIKE '%painting%'
-LIMIT 5;
+SELECT set_name, record_count FROM rijks_sets ORDER BY record_count DESC;
+
+SELECT o.* FROM rijks_objects o
+JOIN rijks_object_sets os ON o.oai_identifier = os.identifier
+WHERE os.set_spec = '<set_spec>';
 ```
 
-For Met works, `image_url` is an API endpoint (e.g. `https://collectionapi.metmuseum.org/public/collection/v1/objects/437878`). The `source_url` links to the collection page where the image can be viewed.
-
-### Access extras JSON
-
-Source-specific fields are in the `extras` column:
+### NYPL by collection
 
 ```sql
--- Met: find highlighted/notable works
-WHERE source = 'met' AND json_extract(extras, '$.is_highlight') = true
+SELECT title, num_items FROM nypl_collections ORDER BY num_items DESC;
 
--- Met: search by tags
-WHERE source = 'met' AND json_extract_string(extras, '$.tags') ILIKE '%landscape%'
-
--- NGA: accession number
-SELECT json_extract_string(extras, '$.accession_num') FROM artworks WHERE source = 'nga'
+SELECT * FROM nypl_objects WHERE collection_title ILIKE '%stereoscopic%';
 ```
 
-## Key Data Characteristics
+### JSON fields (DuckDB syntax)
 
-- **artist_name**: May contain multiple artists separated by `|` (e.g. "Pieter Soutman|Cornelis Visscher")
-- **artist_nationality**: May be duplicated with `|` (e.g. "French|French") or have leading spaces — use ILIKE and TRIM
-- **classification**: Met uses plural ("Paintings", "Prints"), NGA uses singular ("Painting", "Print") — use ILIKE with wildcards
-- **culture**: Met has more specific values ("Greek, Attic"), NGA derives from term tables ("School" termType)
-- **period**: Mix of region-specific periods ("Edo period (1615–1868)"), movements ("Impressionist"), and dynasties ("Qing dynasty (1644–1911)")
-- **date_start/date_end**: Can be negative (BCE works); some outliers exist (e.g. -400000 for prehistoric)
+```sql
+-- Extract string from extra/raw JSON
+SELECT json_extract_string(extra, '$.artist_title') FROM artic_objects;
+
+-- Unnest JSON arrays (Rijks subjects, materials)
+SELECT inventory_number, unnest(from_json(subjects, '["VARCHAR"]')) AS subject
+FROM rijks_objects WHERE subjects IS NOT NULL;
+
+-- Met highlights
+SELECT * FROM met_objects
+WHERE json_extract(extra, '$.is_highlight') = true;
+```
 
 ## Linking to Works
 
-When referencing works in output (guides, notes, etc.), include:
-
-- **Title** and **artist_name** for identification
-- **date_display** for the human-readable date
-- **source_url** as a clickable link to the museum page
-- **image_url** for NGA works (direct IIIF link to full image)
-
-Format example:
+When referencing works in output, include title, artist, date, and source_url:
 
 ```
-- *Young Woman with a Water Pitcher* (c. 1662) — [Met 437881](http://www.metmuseum.org/art/collection/search/437881)
-- *Girl with the Red Hat* (c. 1669) — [NGA 60](https://www.nga.gov/collection/art-object-page.60.html) · [image](https://api.nga.gov/iiif/b705a403-3496-42e8-abf5-a37e34c32198/full/max/0/default.jpg)
+- *Young Woman with a Water Pitcher* (c. 1662) — [Met](http://www.metmuseum.org/art/collection/search/437881)
+- *Girl with the Red Hat* (c. 1669) — [NGA](https://www.nga.gov/collection/art-object-page.60.html)
 ```
+
+For NGA, `image_url` is a direct IIIF link. For Met, `source_url` links to the collection page where the image can be viewed.
 
 ## Writing Guides
 
-When the user asks you to write an art guide or research a topic:
+When researching an art topic:
 
-- Query the database to discover what's available before writing
-- Start with aggregate queries (counts, top artists, classifications) to map the territory
-- Then fetch 3–5 representative works per artist/section, preferring paintings and public domain works
-- Include `source_url` for every referenced work and `image_url` where available (NGA)
-- Save guides to the Obsidian notes directory: `~/Library/Mobile Documents/iCloud~md~obsidian/Documents/github.com/hayeah/artdig/`
+- Query the databases to discover what's available before writing
+- Start with aggregate queries (counts, top artists, classifications)
+- Fetch 3-5 representative works per section, preferring public domain
+- Include `source_url` for every referenced work
+- Save guides to Obsidian: `~/Library/Mobile Documents/iCloud~md~obsidian/Documents/github.com/hayeah/artdig/`
 
 ## Pipeline Management
 
-If the database doesn't exist or needs rebuilding:
-
 ```sh
 cd ~/github.com/hayeah/artdig
-uv run pymake ingest   # ingest both sources (default task)
-uv run pymake stats     # print summary statistics
-```
-
-Individual sources can be re-ingested independently:
-
-```sh
+uv run pymake ingest        # unified (Met + NGA)
 uv run pymake ingest_met
 uv run pymake ingest_nga
+uv run pymake ingest_artic
+uv run pymake ingest_rijks
+uv run pymake ingest_getty
+uv run pymake ingest_nypl
+uv run pymake stats          # print summary statistics
 ```
-
-## Reference
-
-- Full schema: `src/artdig/schema.py`
-- Example queries: `EXAMPLE.md`
-- Existing guides: `.obnotes/` (symlink to Obsidian)
